@@ -97,7 +97,7 @@
 
 **🖼️ Gemini 목업**
 
-_(Gemini 목업을 아직 올리지 않았어요)_
+![Gemini 목업](images/week3-mockup.png)
 
 ---
 
