@@ -1,22 +1,928 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>게임 준비 중</title>
-<style>
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
-         background: #0d0b1e; color: #ecebff; font-family: system-ui, sans-serif; text-align: center; padding: 16px; }
-  h1 { font-size: 28px; }
-  p { color: #9a96c8; }
-  a { color: #3ee6ff; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soul Deckbuilder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 기본 폰트 및 드래그 방지 */
+        body { font-family: 'Inter', sans-serif; user-select: none; background-color: #1a202c; color: white; overflow: hidden; }
+        
+        /* 카드 UI 스타일링 */
+        .game-card {
+            width: 100px;
+            height: 140px;
+            border-radius: 8px;
+            background: linear-gradient(145deg, #2d3748, #1a202c);
+            border: 2px solid #4a5568;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 8px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            position: relative;
+        }
+        .game-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            border-color: #63b3ed;
+        }
+        .card-cost {
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            background-color: #e53e3e;
+            color: white;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .card-title { font-size: 14px; font-weight: bold; text-align: center; margin-top: 12px; }
+        .card-desc { font-size: 12px; text-align: center; color: #a0aec0; }
+        
+        /* 키보드 단축키 힌트 */
+        .hotkey-hint {
+            position: absolute;
+            bottom: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4a5568;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #e2e8f0;
+        }
+
+        /* 체력바 트랜지션 */
+        .hp-bar-fill { transition: width 0.3s ease-in-out; }
+
+        /* 데미지 강조 애니메이션 */
+        @keyframes damageShake {
+            0% { transform: translate(0, 0); }
+            20% { transform: translate(-15px, 0); filter: drop-shadow(0 0 10px red); }
+            40% { transform: translate(15px, 0); }
+            60% { transform: translate(-15px, 0); filter: drop-shadow(0 0 10px red); }
+            80% { transform: translate(15px, 0); }
+            100% { transform: translate(0, 0); filter: none; }
+        }
+        .damage-shake { animation: damageShake 0.4s ease-in-out; }
+        
+        @keyframes blockBreak {
+            0% { transform: scale(1); color: #60a5fa; }
+            50% { transform: scale(1.4); color: #ef4444; }
+            100% { transform: scale(1); color: #60a5fa; }
+        }
+        .block-break { animation: blockBreak 0.3s ease-out; }
+
+        /* 화면 텍스트 팝업 애니메이션 */
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -40px) scale(1.2); }
+        }
+        .animate-float { animation: floatUp 1s ease-out forwards; }
+    </style>
 </head>
-<body>
-  <div>
-    <h1>🛠️ 게임 준비 중</h1>
-    <p>내 작업실의 <b>⬆️ 게임 올리기</b>를 눌러<br>AI가 만들어 준 게임 코드를 <b>index.html</b> 이름으로 올리면<br>여기에 내 게임이 나타나요!</p>
-    <p><a href="../">← 내 작업실로</a></p>
-  </div>
+<body class="w-screen h-screen flex justify-center items-center">
+
+    <!-- 메인 게임 컨테이너 -->
+    <div id="game-container" class="w-full max-w-4xl h-full max-h-[700px] bg-gray-800 shadow-2xl rounded-xl relative overflow-hidden flex flex-col">
+        
+        <!-- 1. 시작 화면 -->
+        <div id="screen-start" class="absolute inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center p-8 text-center">
+            <h1 class="text-5xl font-bold mb-4 text-blue-400">Soul Deckbuilder</h1>
+            <p class="text-gray-300 mb-8 max-w-lg text-lg">드로우, 카드 사용 등 모든 행동에 '영혼'을 사용하는 로그라이크 덱빌딩 게임입니다.</p>
+            
+            <div class="bg-gray-800 p-6 rounded-lg mb-8 text-left border border-gray-700 w-full max-w-md">
+                <h2 class="text-xl font-bold mb-4 text-yellow-400">조작법 & 규칙</h2>
+                <ul class="list-disc pl-5 text-gray-300 space-y-2">
+                    <li><strong class="text-white">숫자키 (1~9)</strong> : 손패의 카드 사용</li>
+                    <li><strong class="text-white">Shift</strong> : 턴 종료</li>
+                    <li><strong class="text-white">Spacebar</strong> : 확인 / 넘어가기</li>
+                    <li><strong class="text-white">마우스</strong> : 버튼 클릭 및 선택</li>
+                    <li>전투 시작 시 영혼 +15 획득</li>
+                    <li>턴 시작 시 3장 자동 드로우 (무료)</li>
+                </ul>
+            </div>
+            <button onclick="startGame()" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xl shadow-lg transition transform hover:scale-105">게임 시작</button>
+        </div>
+
+        <!-- 2. 맵 화면 -->
+        <div id="screen-map" class="hidden absolute inset-0 z-40 bg-gray-800 flex flex-col items-center p-8">
+            <h2 class="text-3xl font-bold text-white mb-2">맵 이동</h2>
+            <div class="text-yellow-400 font-bold mb-4">보유 영혼: <span id="map-soul">0</span></div>
+            
+            <div id="map-container" class="flex-1 w-full max-w-3xl relative mt-4 bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
+                <!-- SVG를 이용해 노드 사이의 길(선)을 그립니다 -->
+                <svg id="map-svg" class="absolute inset-0 w-full h-full pointer-events-none"></svg>
+                <!-- 노드(버튼)들이 배치될 공간 -->
+                <div id="map-nodes" class="absolute inset-0 w-full h-full">
+                    <!-- 자바스크립트로 생성 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 전투 화면 -->
+        <div id="screen-combat" class="hidden absolute inset-0 z-30 bg-gray-900 flex flex-col">
+            <!-- 피격 플래시 효과 -->
+            <div id="damage-flash" class="hidden absolute inset-0 bg-red-600 z-50 pointer-events-none opacity-0 transition-opacity duration-200"></div>
+            
+            <!-- 상단 상태 바 -->
+            <div class="p-4 flex justify-between items-center bg-gray-800 border-b border-gray-700">
+                <div class="text-yellow-400 font-bold text-xl flex items-center gap-2">
+                    <span class="text-2xl">✨</span> 영혼: <span id="combat-soul">0</span>
+                </div>
+                <div class="text-gray-400">덱: <span id="combat-deck-count">0</span> | 버림: <span id="combat-discard-count">0</span></div>
+            </div>
+
+            <!-- 전투 영역 -->
+            <div class="flex-1 flex justify-between items-end p-10 relative">
+                
+                <!-- 플레이어 -->
+                <div class="flex flex-col items-center z-10 w-40 relative">
+                    <div id="player-avatar" class="text-8xl mb-2 transition-transform">👤</div>
+                    <div id="player-block-display" class="text-blue-400 font-bold mb-1 opacity-0 transition-opacity">🛡️ 방어도 <span id="player-block">0</span></div>
+                    <div class="w-full bg-gray-700 h-6 rounded-full overflow-hidden border border-gray-600 relative">
+                        <div id="player-hp-bar" class="hp-bar-fill bg-red-500 h-full w-full"></div>
+                        <div class="absolute inset-0 flex items-center justify-center text-xs font-bold text-white text-shadow">
+                            <span id="player-hp">100</span> / <span id="player-maxhp">100</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 적 -->
+                <div class="flex flex-col items-center z-10 w-40 relative">
+                    <div id="enemy-intent" class="bg-gray-800 border border-gray-600 px-3 py-1 rounded-full mb-4 text-red-400 font-bold flex items-center gap-2">
+                        ⚔️ <span id="enemy-intent-val">8</span>
+                    </div>
+                    <div id="enemy-emoji" class="text-8xl mb-2">👾</div>
+                    <div class="w-full bg-gray-700 h-6 rounded-full overflow-hidden border border-gray-600 relative">
+                        <div id="enemy-hp-bar" class="hp-bar-fill bg-red-600 h-full w-full"></div>
+                        <div class="absolute inset-0 flex items-center justify-center text-xs font-bold text-white text-shadow">
+                            <span id="enemy-hp">40</span> / <span id="enemy-maxhp">40</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 하단 UI (카드 & 컨트롤) -->
+            <div class="h-56 bg-gray-800 border-t border-gray-700 p-4 flex gap-4 items-center">
+                <!-- 드로우 버튼 -->
+                <button id="draw-btn" onclick="manualDraw()" class="w-24 h-32 bg-blue-700 hover:bg-blue-600 rounded-lg flex flex-col items-center justify-center border-2 border-blue-400 shadow-lg transition transform hover:scale-105 relative">
+                    <span class="text-3xl mb-1">🃏</span>
+                    <span class="font-bold">드로우</span>
+                    <span class="text-yellow-300 text-sm mt-1">영혼 3</span>
+                    <span id="draw-limit-display" class="text-xs text-gray-300 mt-1 font-bold">(남은 횟수: 3)</span>
+                </button>
+
+                <!-- 패 (Hand) -->
+                <div id="hand-container" class="flex-1 flex gap-3 overflow-x-visible items-center justify-center">
+                    <!-- 카드가 자바스크립트를 통해 동적으로 생성됩니다. -->
+                </div>
+
+                <!-- 턴 종료 버튼 -->
+                <button onclick="endTurn()" class="w-24 h-32 bg-red-700 hover:bg-red-600 rounded-lg flex flex-col items-center justify-center border-2 border-red-400 shadow-lg transition transform hover:scale-105">
+                    <span class="text-3xl mb-1">⏳</span>
+                    <span class="font-bold">턴 종료</span>
+                    <span class="text-gray-300 text-xs mt-1">(Shift)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. 전투 보상 화면 -->
+        <div id="screen-reward" class="hidden absolute inset-0 z-40 bg-gray-900 bg-opacity-95 flex flex-col items-center justify-center p-8">
+            <h2 class="text-4xl font-bold text-yellow-400 mb-6">전투 승리!</h2>
+            <div class="text-xl mb-8">획득한 영혼: <span id="reward-soul-amount" class="text-yellow-400 font-bold">15</span></div>
+            <h3 class="text-2xl mb-4">카드 1장을 선택하세요</h3>
+            <div id="reward-cards" class="flex gap-6 mb-10">
+                <!-- 보상 카드 3장 동적 생성 -->
+            </div>
+            <button onclick="skipReward()" class="px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white">(Space) 건너뛰기</button>
+        </div>
+
+        <!-- 5. 상점 화면 -->
+        <div id="screen-shop" class="hidden absolute inset-0 z-40 bg-gray-900 flex flex-col items-center p-8">
+            <h2 class="text-4xl font-bold text-yellow-500 mb-2">상점 ⛺</h2>
+            <div class="text-yellow-400 font-bold mb-8 text-xl">보유 영혼: <span id="shop-soul">0</span></div>
+            
+            <div class="flex gap-10 w-full max-w-3xl">
+                <!-- 서비스 -->
+                <div class="flex-1 bg-gray-800 p-6 rounded-lg border border-gray-700">
+                    <h3 class="text-2xl font-bold mb-4 text-center">서비스</h3>
+                    <button onclick="buyHeal()" class="w-full py-4 bg-green-700 hover:bg-green-600 rounded-lg flex flex-col items-center mb-4 transition">
+                        <span class="text-2xl">❤️ 체력 20 회복</span>
+                        <span class="text-yellow-300 mt-1">영혼 15 소모</span>
+                    </button>
+                </div>
+                
+                <!-- 카드 판매 -->
+                <div class="flex-1 bg-gray-800 p-6 rounded-lg border border-gray-700">
+                    <h3 class="text-2xl font-bold mb-4 text-center">카드 구매</h3>
+                    <div id="shop-cards" class="flex justify-center gap-4">
+                        <!-- 상점 카드 동적 생성 -->
+                    </div>
+                </div>
+            </div>
+            <button onclick="leaveShop()" class="mt-10 px-8 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg shadow-lg">상점 나가기 (Space)</button>
+        </div>
+
+        <!-- 6. 이벤트 화면 -->
+        <div id="screen-event" class="hidden absolute inset-0 z-40 bg-gray-900 flex flex-col items-center justify-center p-8">
+            <h2 class="text-4xl font-bold text-purple-400 mb-6">의문의 제단 ❓</h2>
+            <div class="bg-gray-800 p-8 rounded-lg border border-gray-700 max-w-lg text-center mb-8">
+                <p class="text-lg text-gray-300 mb-6">당신은 피가 묻은 제단을 발견했습니다. 체력을 바치면 영혼을 얻을 수 있을 것 같습니다.</p>
+                <div class="flex flex-col gap-4">
+                    <button onclick="resolveEvent(true)" class="px-6 py-4 bg-red-700 hover:bg-red-600 rounded-lg font-bold transition flex justify-between px-10">
+                        <span>체력을 바친다</span>
+                        <span class="text-sm font-normal">(-10 체력, +20 영혼)</span>
+                    </button>
+                    <button onclick="resolveEvent(false)" class="px-6 py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold transition flex justify-between px-10">
+                        <span>무시하고 지나간다 (Space)</span>
+                        <span class="text-sm font-normal">변화 없음</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. 결과 화면 (클리어/게임오버) -->
+        <div id="screen-result" class="hidden absolute inset-0 z-50 bg-black bg-opacity-90 flex flex-col items-center justify-center p-8 text-center">
+            <h1 id="result-title" class="text-6xl font-bold mb-4">결과</h1>
+            <p id="result-desc" class="text-xl text-gray-300 mb-8">게임 설명</p>
+            <button onclick="initGame()" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xl shadow-lg transition">다시 하기 (Space)</button>
+        </div>
+
+    </div>
+
+    <!-- JavaScript 게임 로직 -->
+    <script>
+        // =====================================================================
+        // [설정값 (기획서에 명시되지 않아 밸런스를 위해 직접 설정한 값들)]
+        // =====================================================================
+        const CONFIG = {
+            // 플레이어 초기 스펙
+            PLAYER_MAX_HP: 100,
+            PLAYER_START_SOUL: 50,
+            
+            // 카드 스펙
+            CARD_STRIKE_DMG: 6,
+            CARD_STRIKE_COST: 2, 
+            CARD_DEFEND_BLK: 6,
+            CARD_DEFEND_COST: 2, 
+            
+            // 시스템 자원 및 동작 설정
+            SOUL_DRAW_COST: 3,            // 드로우 비용 증가
+            SOUL_COMBAT_START_BONUS: 15,  // 전투 진입 시 얻는 영혼
+            TURN_START_DRAW: 3,           // 매 턴 시작 시 무료로 뽑는 카드 수
+            REWARD_SOUL_MIN: 10,          // 전투 승리 시 영혼 보상 최소값
+            REWARD_SOUL_MAX: 20,          // 전투 승리 시 영혼 보상 최대값
+            
+            // 적 스펙 (기존 대비 50% 증가)
+            ENEMY_NORMAL_HP: 60,
+            ENEMY_NORMAL_ATK: 12,
+            ENEMY_BOSS_HP: 180,
+            ENEMY_BOSS_ATK: 23,
+            
+            // 상점 설정
+            SHOP_HEAL_AMOUNT: 20,
+            SHOP_HEAL_COST: 15,
+            SHOP_CARD_COST: 20,
+            
+            // 이벤트 설정
+            EVENT_HP_COST: 10,
+            EVENT_SOUL_GAIN: 20
+        };
+
+        // =====================================================================
+        // [게임 상태 변수]
+        // =====================================================================
+        let state = {
+            currentScreen: 'start',
+            hp: CONFIG.PLAYER_MAX_HP,
+            maxHp: CONFIG.PLAYER_MAX_HP,
+            soul: CONFIG.PLAYER_START_SOUL,
+            block: 0,
+            deck: [],
+            hand: [],
+            discard: [],
+            drawsLeft: 3, // 턴당 드로우 제한
+            
+            mapGraph: null, // 전체 맵 노드 구조
+            currentNodeId: 'start', // 현재 위치한 노드 ID
+            
+            enemy: null // 현재 전투 중인 적 객체
+        };
+
+        // 전체 게임에 등장할 수 있는 카드 데이터베이스
+        const CARD_DB = {
+            strike: { id: 'strike', title: '타격', type: 'attack', value: CONFIG.CARD_STRIKE_DMG, cost: CONFIG.CARD_STRIKE_COST, desc: `피해 ${CONFIG.CARD_STRIKE_DMG}을 줍니다.` },
+            defend: { id: 'defend', title: '수비', type: 'skill', value: CONFIG.CARD_DEFEND_BLK, cost: CONFIG.CARD_DEFEND_COST, desc: `방어도 ${CONFIG.CARD_DEFEND_BLK}을 얻습니다.` },
+            soulMark: { id: 'soulMark', title: '영혼 낙인', type: 'attack', value: 8, cost: 2, desc: `피해 8을 줍니다. 이번 턴에 이 적을 공격할 때마다 영혼 1을 얻습니다.` },
+            heavyStrike: { id: 'heavyStrike', title: '강타', type: 'attack', value: 20, cost: 3, desc: `피해 20을 줍니다.` },
+            quickStrike: { id: 'quickStrike', title: '연타', type: 'attack', value: 5, cost: 0, desc: `피해 5를 줍니다. 코스트 없음.` },
+            ironWall: { id: 'ironWall', title: '철벽', type: 'skill', value: 20, cost: 3, desc: `방어도 20을 얻습니다.` }
+        };
+
+        // =====================================================================
+        // [유틸리티 및 초기화 함수]
+        // =====================================================================
+        
+        function switchScreen(screenId) {
+            const screens = ['screen-start', 'screen-map', 'screen-combat', 'screen-reward', 'screen-shop', 'screen-event', 'screen-result'];
+            screens.forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(`screen-${screenId}`).classList.remove('hidden');
+            state.currentScreen = screenId;
+        }
+
+        // 배열 섞기 알고리즘 (Fisher-Yates)
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // 게임 초기화
+        function initGame() {
+            state.hp = CONFIG.PLAYER_MAX_HP;
+            state.maxHp = CONFIG.PLAYER_MAX_HP;
+            state.soul = CONFIG.PLAYER_START_SOUL;
+            state.block = 0;
+            
+            // 기본 덱 구성 (공격 4, 수비 4, 영혼 낙인 1)
+            state.deck = [];
+            for(let i=0; i<4; i++) state.deck.push({...CARD_DB.strike});
+            for(let i=0; i<4; i++) state.deck.push({...CARD_DB.defend});
+            state.deck.push({...CARD_DB.soulMark});
+            
+            state.hand = [];
+            state.discard = [];
+            
+            generateMapGraph();
+            updateGlobalUI();
+            switchScreen('start');
+        }
+
+        function startGame() {
+            updateMapUI();
+            switchScreen('map');
+        }
+
+        // =====================================================================
+        // [맵 로직 (노드 및 이동)]
+        // =====================================================================
+        function generateMapGraph() {
+            // 기획서 스케치와 유사한 형태의 거미줄(Web) 노드 구조
+            state.mapGraph = {
+                'start': { id: 'start', x: 10, y: 50, type: 'start', emoji: '🚩', next: ['node1', 'node2'] },
+                'node1': { id: 'node1', x: 30, y: 30, type: 'combat', emoji: '👾', next: ['node3', 'node4'] },
+                'node2': { id: 'node2', x: 30, y: 70, type: 'event', emoji: '❓', next: ['node4', 'node5'] },
+                'node3': { id: 'node3', x: 50, y: 20, type: 'shop', emoji: '⛺', next: ['node6'] },
+                'node4': { id: 'node4', x: 50, y: 50, type: 'combat', emoji: '👾', next: ['node6', 'node7'] },
+                'node5': { id: 'node5', x: 50, y: 80, type: 'combat', emoji: '👾', next: ['node7'] },
+                'node6': { id: 'node6', x: 70, y: 35, type: 'event', emoji: '❓', next: ['boss'] },
+                'node7': { id: 'node7', x: 70, y: 65, type: 'shop', emoji: '⛺', next: ['boss'] },
+                'boss': { id: 'boss', x: 90, y: 50, type: 'boss', emoji: '👹', next: [] }
+            };
+            state.currentNodeId = 'start';
+        }
+
+        function updateMapUI() {
+            renderMapNodes();
+        }
+
+        function renderMapNodes() {
+            const svg = document.getElementById('map-svg');
+            const nodesContainer = document.getElementById('map-nodes');
+            svg.innerHTML = '';
+            nodesContainer.innerHTML = '';
+
+            const graph = state.mapGraph;
+            
+            // 1. 노드 간의 연결 선(Line) 그리기
+            Object.values(graph).forEach(node => {
+                node.next.forEach(nextId => {
+                    const target = graph[nextId];
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', `${node.x}%`);
+                    line.setAttribute('y1', `${node.y}%`);
+                    line.setAttribute('x2', `${target.x}%`);
+                    line.setAttribute('y2', `${target.y}%`);
+                    line.setAttribute('stroke', '#4b5563'); // 기본 회색 선
+                    line.setAttribute('stroke-width', '2');
+                    
+                    // 현재 위치에서 갈 수 있는 경로는 노란색으로 강조
+                    if (node.id === state.currentNodeId) {
+                        line.setAttribute('stroke', '#fbbf24');
+                        line.setAttribute('stroke-width', '4');
+                        line.classList.add('animate-pulse');
+                    }
+                    svg.appendChild(line);
+                });
+            });
+
+            // 2. 노드(방) 버튼 그리기
+            Object.values(graph).forEach(node => {
+                const btn = document.createElement('button');
+                const isCurrent = node.id === state.currentNodeId;
+                const isAccessible = graph[state.currentNodeId] && graph[state.currentNodeId].next.includes(node.id);
+                
+                // 상태에 따른 스타일링
+                btn.className = `absolute transform -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center text-2xl z-10 transition-all border-2 
+                    ${isCurrent ? 'bg-blue-600 border-white scale-125' : 
+                      isAccessible ? 'bg-gray-700 border-yellow-400 hover:scale-110 hover:bg-gray-600 cursor-pointer shadow-[0_0_15px_rgba(251,191,36,0.5)]' : 
+                      'bg-gray-800 border-gray-600 opacity-50 cursor-not-allowed'}`;
+                
+                btn.style.left = `${node.x}%`;
+                btn.style.top = `${node.y}%`;
+                
+                // 이모지 표시 (현재 위치는 플레이어 아이콘)
+                btn.innerHTML = isCurrent ? '👤' : node.emoji;
+                
+                if (isAccessible) {
+                    btn.onclick = () => enterNextNode(node.id);
+                }
+                
+                nodesContainer.appendChild(btn);
+            });
+        }
+
+        window.enterNextNode = function(nodeId) {
+            state.currentNodeId = nodeId;
+            const node = state.mapGraph[nodeId];
+            
+            if (node.type === 'combat') {
+                startCombat(false);
+            } else if (node.type === 'event') {
+                startEvent();
+            } else if (node.type === 'shop') {
+                startShop();
+            } else if (node.type === 'boss') {
+                startCombat(true);
+            } else {
+                updateMapUI();
+            }
+        }
+
+        // 공통 UI 업데이트 (체력, 영혼)
+        function updateGlobalUI() {
+            // Player
+            document.getElementById('player-hp').textContent = state.hp;
+            document.getElementById('player-maxhp').textContent = state.maxHp;
+            const hpPercent = Math.max(0, (state.hp / state.maxHp) * 100);
+            document.getElementById('player-hp-bar').style.width = `${hpPercent}%`;
+            
+            document.getElementById('player-block').textContent = state.block;
+            const blockEl = document.getElementById('player-block-display');
+            if (state.block > 0) {
+                blockEl.classList.remove('opacity-0');
+            } else {
+                blockEl.classList.add('opacity-0');
+            }
+
+            // Soul displays
+            document.getElementById('combat-soul').textContent = state.soul;
+            document.getElementById('map-soul').textContent = state.soul;
+            document.getElementById('shop-soul').textContent = state.soul;
+
+            // Combat specific text
+            document.getElementById('combat-deck-count').textContent = state.deck.length;
+            document.getElementById('combat-discard-count').textContent = state.discard.length;
+
+            // 드로우 버튼 및 횟수 제한 업데이트
+            const drawBtn = document.getElementById('draw-btn');
+            if (drawBtn) {
+                const limitDisplay = document.getElementById('draw-limit-display');
+                if (limitDisplay) limitDisplay.textContent = `(남은 횟수: ${state.drawsLeft})`;
+                
+                if (state.drawsLeft <= 0 || state.soul < CONFIG.SOUL_DRAW_COST) {
+                    drawBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    drawBtn.classList.remove('hover:bg-blue-600', 'hover:scale-105');
+                } else {
+                    drawBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    drawBtn.classList.add('hover:bg-blue-600', 'hover:scale-105');
+                }
+            }
+        }
+
+        // =====================================================================
+        // [전투 로직]
+        // =====================================================================
+        function startCombat(isBoss) {
+            // 적 생성
+            state.enemy = {
+                hp: isBoss ? CONFIG.ENEMY_BOSS_HP : CONFIG.ENEMY_NORMAL_HP,
+                maxHp: isBoss ? CONFIG.ENEMY_BOSS_HP : CONFIG.ENEMY_NORMAL_HP,
+                atk: isBoss ? CONFIG.ENEMY_BOSS_ATK : CONFIG.ENEMY_NORMAL_ATK,
+                emoji: isBoss ? '👹' : '👾',
+                isBoss: isBoss,
+                soulMarked: false // 영혼 낙인 상태 플래그
+            };
+
+            // 전투 시작 영혼 보너스
+            state.soul += CONFIG.SOUL_COMBAT_START_BONUS;
+
+            // 덱 셔플 (버린패 + 손패 + 덱 모두 합쳐서 새로 셔플)
+            state.deck = shuffle([...state.deck, ...state.hand, ...state.discard]);
+            state.hand = [];
+            state.discard = [];
+            state.block = 0;
+
+            updateEnemyUI();
+            updateGlobalUI();
+            switchScreen('combat');
+            
+            // 첫 턴 시작
+            startTurn();
+        }
+
+        function updateEnemyUI() {
+            if (!state.enemy) return;
+            document.getElementById('enemy-emoji').textContent = state.enemy.emoji;
+            document.getElementById('enemy-hp').textContent = state.enemy.hp;
+            document.getElementById('enemy-maxhp').textContent = state.enemy.maxHp;
+            const hpPercent = Math.max(0, (state.enemy.hp / state.enemy.maxHp) * 100);
+            document.getElementById('enemy-hp-bar').style.width = `${hpPercent}%`;
+            document.getElementById('enemy-intent-val').textContent = state.enemy.atk;
+        }
+
+        // 플레이어 턴 시작
+        function startTurn() {
+            state.block = 0; // 방어도 초기화
+            state.drawsLeft = 3; // 드로우 횟수 초기화
+            drawCards(CONFIG.TURN_START_DRAW); // 매턴 3장 드로우
+            updateGlobalUI();
+        }
+
+        // 카드 드로우 (시스템/자동)
+        function drawCards(amount) {
+            for (let i = 0; i < amount; i++) {
+                if (state.deck.length === 0) {
+                    // 덱이 비었으면 버린패를 셔플하여 덱으로
+                    if (state.discard.length === 0) break; // 버린패도 없으면 중단
+                    state.deck = shuffle([...state.discard]);
+                    state.discard = [];
+                }
+                const card = state.deck.pop();
+                state.hand.push(card);
+            }
+            renderHand();
+            updateGlobalUI();
+        }
+
+        // 버튼 클릭을 통한 드로우 (영혼 소모)
+        window.manualDraw = function() {
+            if (state.drawsLeft > 0 && state.soul >= CONFIG.SOUL_DRAW_COST) {
+                state.soul -= CONFIG.SOUL_DRAW_COST;
+                state.drawsLeft--;
+                drawCards(1);
+                updateGlobalUI(); // UI 즉시 갱신
+            }
+        }
+
+        // 손패 UI 렌더링
+        function renderHand() {
+            const container = document.getElementById('hand-container');
+            container.innerHTML = '';
+            
+            state.hand.forEach((card, index) => {
+                const canAfford = state.soul >= card.cost;
+                const cardEl = document.createElement('div');
+                cardEl.className = `game-card ${canAfford ? '' : 'opacity-50 cursor-not-allowed'}`;
+                cardEl.onclick = () => playCard(index);
+                
+                cardEl.innerHTML = `
+                    <div class="card-cost">${card.cost}</div>
+                    <div class="card-title text-${card.type === 'attack' ? 'red' : 'blue'}-400">${card.title}</div>
+                    <div class="card-desc">${card.desc}</div>
+                    <div class="hotkey-hint">${index + 1}</div>
+                `;
+                container.appendChild(cardEl);
+            });
+        }
+
+        // 유틸리티 함수 - 화면에 떠오르는 텍스트 애니메이션
+        function showFloatingText(elementId, text, colorClass) {
+            const el = document.getElementById(elementId);
+            if (!el || !el.parentElement) return;
+            const floater = document.createElement('div');
+            floater.textContent = text;
+            floater.className = `absolute text-xl font-bold ${colorClass} animate-float pointer-events-none z-50`;
+            floater.style.top = '0';
+            floater.style.left = '50%';
+            floater.style.transform = 'translateX(-50%)';
+            el.parentElement.appendChild(floater);
+            setTimeout(() => floater.remove(), 1000);
+        }
+
+        // 카드 사용
+        window.playCard = function(index) {
+            const card = state.hand[index];
+            if (!card) return;
+
+            // 코스트(영혼) 체크
+            if (state.soul < card.cost) return;
+
+            // 영혼 소모
+            state.soul -= card.cost;
+
+            // 효과 적용
+            if (card.type === 'attack') {
+                // 영혼 낙인 시너지: 공격 적중 시 영혼 추가 획득
+                if (state.enemy.soulMarked) {
+                    state.soul += 1;
+                    showFloatingText('enemy-emoji', '+1 영혼!', 'text-yellow-400');
+                }
+
+                state.enemy.hp -= card.value;
+                if (state.enemy.hp < 0) state.enemy.hp = 0;
+                
+                // 영혼 낙인 부여 처리
+                if (card.id === 'soulMark') {
+                    state.enemy.soulMarked = true;
+                    showFloatingText('enemy-emoji', '낙인 부여!', 'text-purple-400');
+                }
+                
+                // 적 피격 애니메이션
+                const enemyEmoji = document.getElementById('enemy-emoji');
+                enemyEmoji.classList.remove('damage-shake');
+                void enemyEmoji.offsetWidth; // 리플로우 강제 (애니메이션 재시작)
+                enemyEmoji.classList.add('damage-shake');
+
+            } else if (card.type === 'skill') {
+                state.block += card.value;
+            }
+
+            // 카드 제거 및 버린패로 이동
+            state.hand.splice(index, 1);
+            state.discard.push(card);
+
+            renderHand();
+            updateGlobalUI();
+            updateEnemyUI();
+
+            // 적 사망 체크
+            if (state.enemy.hp <= 0) {
+                setTimeout(winCombat, 500);
+            }
+        }
+
+        // 턴 종료 (플레이어 -> 적 턴 진행)
+        window.endTurn = function() {
+            if (state.currentScreen !== 'combat') return;
+
+            // 남은 패 버리기 (선택적 룰이나, 덱빌딩 기본룰에 따라 모두 버림)
+            state.discard.push(...state.hand);
+            state.hand = [];
+            renderHand();
+
+            // 적 행동 처리
+            setTimeout(() => {
+                enemyTurn();
+            }, 500);
+        }
+
+        function enemyTurn() {
+            let damage = state.enemy.atk;
+            
+            // 방어도로 데미지 감소
+            if (state.block > 0) {
+                // 방어도 타격 애니메이션
+                const blockDisplay = document.getElementById('player-block-display');
+                blockDisplay.classList.remove('block-break');
+                void blockDisplay.offsetWidth;
+                blockDisplay.classList.add('block-break');
+
+                if (state.block >= damage) {
+                    state.block -= damage;
+                    damage = 0;
+                } else {
+                    damage -= state.block;
+                    state.block = 0;
+                }
+            }
+            
+            // 체력 피해 및 영혼 획득
+            if (damage > 0) {
+                // 아바타 진동 애니메이션
+                const playerAvatar = document.getElementById('player-avatar');
+                playerAvatar.classList.remove('damage-shake');
+                void playerAvatar.offsetWidth;
+                playerAvatar.classList.add('damage-shake');
+
+                // 붉은 화면 플래시
+                const hpFlash = document.getElementById('damage-flash');
+                hpFlash.classList.remove('hidden', 'opacity-0');
+                hpFlash.classList.add('opacity-40');
+                setTimeout(() => {
+                    hpFlash.classList.remove('opacity-40');
+                    hpFlash.classList.add('opacity-0');
+                    setTimeout(() => hpFlash.classList.add('hidden'), 200);
+                }, 150);
+
+                state.hp -= damage;
+                
+                // 체력 1 상실 당 영혼 2 획득
+                state.soul += damage * 2;
+                showFloatingText('player-avatar', `+${damage * 2} 영혼!`, 'text-yellow-400');
+                
+                if (state.hp <= 0) {
+                    state.hp = 0;
+                    updateGlobalUI();
+                    gameOver(false);
+                    return;
+                }
+            }
+
+            updateGlobalUI();
+            
+            // 턴 종료 시 적의 낙인 상태 해제
+            state.enemy.soulMarked = false;
+
+            // 다시 플레이어 턴
+            setTimeout(() => {
+                startTurn();
+            }, 600); // 연출을 위해 약간의 딜레이 추가
+        }
+
+        // 전투 승리
+        function winCombat() {
+            if (state.enemy.isBoss) {
+                gameOver(true); // 보스면 게임 클리어
+                return;
+            }
+            
+            // 영혼 보상 (10 ~ 20 랜덤)
+            const soulReward = Math.floor(Math.random() * (CONFIG.REWARD_SOUL_MAX - CONFIG.REWARD_SOUL_MIN + 1)) + CONFIG.REWARD_SOUL_MIN;
+            state.soul += soulReward;
+            document.getElementById('reward-soul-amount').textContent = soulReward;
+
+            // 카드 보상 생성 (무작위 3장)
+            const rewardContainer = document.getElementById('reward-cards');
+            rewardContainer.innerHTML = '';
+            
+            // DB에서 기본카드 제외하고 랜덤 선택을 위한 배열 
+            const pool = [CARD_DB.heavyStrike, CARD_DB.quickStrike, CARD_DB.ironWall];
+            const choices = shuffle([...pool, ...pool]).slice(0, 3); // 간단히 풀을 복제해 3장 뽑기
+
+            choices.forEach(card => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'game-card cursor-pointer transform hover:scale-110';
+                cardEl.onclick = () => selectRewardCard(card);
+                cardEl.innerHTML = `
+                    <div class="card-cost">${card.cost}</div>
+                    <div class="card-title text-${card.type === 'attack' ? 'red' : 'blue'}-400">${card.title}</div>
+                    <div class="card-desc">${card.desc}</div>
+                `;
+                rewardContainer.appendChild(cardEl);
+            });
+
+            updateGlobalUI();
+            switchScreen('reward');
+        }
+
+        window.selectRewardCard = function(card) {
+            state.deck.push({...card});
+            updateMapUI();
+            switchScreen('map');
+        }
+
+        window.skipReward = function() {
+            if(state.currentScreen === 'reward') {
+                updateMapUI();
+                switchScreen('map');
+            }
+        }
+
+        // =====================================================================
+        // [이벤트 및 상점 로직]
+        // =====================================================================
+        function startEvent() {
+            switchScreen('event');
+        }
+
+        window.resolveEvent = function(accept) {
+            if (accept) {
+                state.hp -= CONFIG.EVENT_HP_COST;
+                state.soul += CONFIG.EVENT_SOUL_GAIN;
+                if(state.hp <= 0) {
+                    gameOver(false);
+                    return;
+                }
+            }
+            updateMapUI();
+            switchScreen('map');
+        }
+
+        function startShop() {
+            const shopContainer = document.getElementById('shop-cards');
+            shopContainer.innerHTML = '';
+            
+            const pool = [CARD_DB.heavyStrike, CARD_DB.ironWall];
+            
+            pool.forEach(card => {
+                const cardEl = document.createElement('div');
+                const canAfford = state.soul >= CONFIG.SHOP_CARD_COST;
+                cardEl.className = `game-card ${canAfford ? '' : 'opacity-50 cursor-not-allowed'}`;
+                cardEl.onclick = () => {
+                    if (state.soul >= CONFIG.SHOP_CARD_COST) {
+                        state.soul -= CONFIG.SHOP_CARD_COST;
+                        state.deck.push({...card});
+                        cardEl.classList.add('hidden'); // 한 번 사면 사라짐
+                        updateGlobalUI();
+                    }
+                };
+                cardEl.innerHTML = `
+                    <div class="card-cost">${card.cost}</div>
+                    <div class="card-title text-${card.type === 'attack' ? 'red' : 'blue'}-400">${card.title}</div>
+                    <div class="card-desc">${card.desc}</div>
+                    <div class="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-white text-xs px-2 py-1 rounded">20 영혼</div>
+                `;
+                shopContainer.appendChild(cardEl);
+            });
+
+            updateGlobalUI();
+            switchScreen('shop');
+        }
+
+        window.buyHeal = function() {
+            if (state.soul >= CONFIG.SHOP_HEAL_COST && state.hp < state.maxHp) {
+                state.soul -= CONFIG.SHOP_HEAL_COST;
+                state.hp = Math.min(state.maxHp, state.hp + CONFIG.SHOP_HEAL_AMOUNT);
+                updateGlobalUI();
+            }
+        }
+
+        window.leaveShop = function() {
+            if(state.currentScreen === 'shop') {
+                updateMapUI();
+                switchScreen('map');
+            }
+        }
+
+        // =====================================================================
+        // [게임 종료 로직]
+        // =====================================================================
+        function gameOver(isWin) {
+            const titleEl = document.getElementById('result-title');
+            const descEl = document.getElementById('result-desc');
+            
+            if (isWin) {
+                titleEl.textContent = '스테이지 클리어!';
+                titleEl.className = 'text-6xl font-bold mb-4 text-yellow-400';
+                descEl.textContent = '보스를 무찌르고 영혼을 지켜냈습니다.';
+            } else {
+                titleEl.textContent = '게임 오버';
+                titleEl.className = 'text-6xl font-bold mb-4 text-red-500';
+                descEl.textContent = '체력이 모두 소진되었습니다...';
+            }
+            
+            switchScreen('result');
+        }
+
+        // =====================================================================
+        // [입력 장치 (키보드 이벤트)]
+        // =====================================================================
+        window.addEventListener('keydown', (e) => {
+            // 스크롤 방지
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
+
+            if (e.key === 'Shift') {
+                endTurn();
+            } else if (e.key >= '1' && e.key <= '9') {
+                const index = parseInt(e.key) - 1;
+                if (state.currentScreen === 'combat') {
+                    playCard(index);
+                } else if (state.currentScreen === 'map') {
+                    // 맵 화면에서 1, 2, 3... 키로 갈림길 선택
+                    const currentNode = state.mapGraph[state.currentNodeId];
+                    if (currentNode && currentNode.next.length > index) {
+                        enterNextNode(currentNode.next[index]);
+                    }
+                }
+            } else if (e.key === ' ' || e.key === 'Spacebar') {
+                // 맵 화면에서는 선택지를 고르게 하기 위해 스페이스바 진행 기능 제거
+                if (state.currentScreen === 'reward') skipReward();
+                else if (state.currentScreen === 'shop') leaveShop();
+                else if (state.currentScreen === 'event') resolveEvent(false); // 스페이스바로 무시
+                else if (state.currentScreen === 'result') initGame();
+            }
+        });
+
+        // 시작 시 초기화
+        initGame();
+
+    </script>
 </body>
 </html>
