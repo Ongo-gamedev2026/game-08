@@ -2,12 +2,24 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Soul Deckbuilder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 기본 폰트 및 드래그 방지 */
-        body { font-family: 'Inter', sans-serif; user-select: none; background-color: #1a202c; color: white; overflow: hidden; }
+        /* 모바일 터치 최적화 및 기본 폰트 */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #1a202c;
+            color: white;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
         
         /* 카드 UI 스타일링 */
         .game-card {
@@ -25,18 +37,21 @@
             position: relative;
             flex-shrink: 0;
         }
-        .game-card:hover {
-            transform: translateY(-16px) scale(1.08);
-            box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.7);
-            border-color: #63b3ed;
-            z-50 !important;
+        /* 호버 지원 기기(PC)에서만 호버 리프트 적용 */
+        @media (hover: hover) {
+            .game-card:hover {
+                transform: translateY(-16px) scale(1.08);
+                box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.7);
+                border-color: #63b3ed;
+                z-index: 50 !important;
+            }
         }
         /* 카드 선택 상태 추가 */
         .game-card.selected {
             transform: translateY(-20px) scale(1.1);
             border-color: #f6e05e !important;
             box-shadow: 0 0 15px rgba(246, 224, 94, 0.8);
-            z-50 !important;
+            z-index: 50 !important;
         }
         .card-cost {
             position: absolute;
@@ -97,42 +112,115 @@
             100% { opacity: 0; transform: translate(-50%, -40px) scale(1.2); }
         }
         .animate-float { animation: floatUp 1s ease-out forwards; }
+
+        /* 공격 카드 선택 시 적 붉은 발광 효과 */
+        @keyframes enemyTargetGlow {
+            0%, 100% {
+                filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.85)) drop-shadow(0 0 22px rgba(220, 38, 38, 0.6));
+                transform: scale(1.04);
+            }
+            50% {
+                filter: drop-shadow(0 0 18px rgba(248, 113, 113, 1)) drop-shadow(0 0 36px rgba(239, 68, 68, 0.9));
+                transform: scale(1.1);
+            }
+        }
+        .enemy-target-glow { animation: enemyTargetGlow 1s ease-in-out infinite; }
+
+        /* 스킬 카드 선택 시 플레이어 푸른 발광 효과 */
+        @keyframes playerSkillGlow {
+            0%, 100% {
+                filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.85)) drop-shadow(0 0 22px rgba(59, 130, 246, 0.6));
+                transform: scale(1.04);
+            }
+            50% {
+                filter: drop-shadow(0 0 18px rgba(147, 197, 253, 1)) drop-shadow(0 0 36px rgba(59, 130, 246, 0.9));
+                transform: scale(1.1);
+            }
+        }
+        .player-skill-glow { animation: playerSkillGlow 1s ease-in-out infinite; }
+
+        /* 파워 카드 선택 시 플레이어 보라 발광 효과 */
+        @keyframes playerPowerGlow {
+            0%, 100% {
+                filter: drop-shadow(0 0 10px rgba(192, 132, 252, 0.85)) drop-shadow(0 0 22px rgba(168, 85, 247, 0.6));
+                transform: scale(1.04);
+            }
+            50% {
+                filter: drop-shadow(0 0 18px rgba(216, 180, 254, 1)) drop-shadow(0 0 36px rgba(168, 85, 247, 0.9));
+                transform: scale(1.1);
+            }
+        }
+        .player-power-glow { animation: playerPowerGlow 1s ease-in-out infinite; }
+
+        /* 모바일 반응형 스타일 (768px 이하) */
+        @media (max-width: 768px) {
+            .hotkey-hint { display: none; }
+            .game-card {
+                width: 96px;
+                height: 134px;
+                padding: 6px;
+            }
+            .card-title { font-size: 13px; margin-top: 10px; }
+            .card-desc { font-size: 11px; line-height: 1.25; }
+            .game-card.selected {
+                transform: translateY(-14px) scale(1.06);
+            }
+            #hand-container {
+                justify-content: flex-start;
+                overflow-x: auto;
+                overflow-y: visible;
+                gap: 8px;
+                padding: 24px 12px 8px;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            #hand-container::-webkit-scrollbar {
+                display: none;
+            }
+        }
     </style>
 </head>
-<body class="w-screen h-screen flex justify-center items-center">
+<body class="w-screen h-[100dvh] flex justify-center items-center">
 
     <!-- 메인 게임 컨테이너 -->
-    <div id="game-container" class="w-full max-w-4xl h-full max-h-[700px] bg-gray-800 shadow-2xl rounded-xl relative overflow-hidden flex flex-col">
+    <div id="game-container" class="w-full max-w-4xl h-full md:max-h-[700px] bg-gray-800 shadow-2xl md:rounded-xl relative overflow-hidden flex flex-col">
+
+        <!-- 모바일 정보 안내 토스트 -->
+        <div id="mobile-toast" class="hidden absolute top-14 left-1/2 transform -translate-x-1/2 z-[60] bg-gray-900/95 border border-blue-400 text-white px-4 py-2 rounded-lg shadow-2xl max-w-[90%] text-center pointer-events-none transition-opacity duration-200">
+            <div id="mobile-toast-title" class="font-bold text-sm text-blue-300"></div>
+            <div id="mobile-toast-desc" class="text-xs text-gray-200 mt-0.5 break-keep"></div>
+        </div>
         
         <!-- 1. 시작 화면 -->
-        <div id="screen-start" class="absolute inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center p-8 text-center">
-            <h1 class="text-5xl font-bold mb-4 text-blue-400">Soul Deckbuilder</h1>
-            <p class="text-gray-300 mb-8 max-w-lg text-lg">드로우, 카드 사용 등 모든 행동에 '영혼'을 사용하는 로그라이크 덱빌딩 게임입니다.</p>
+        <div id="screen-start" class="absolute inset-0 z-50 bg-gray-900 flex flex-col items-center justify-start sm:justify-center p-5 sm:p-8 text-center overflow-y-auto">
+            <h1 class="text-4xl sm:text-5xl font-bold mb-3 sm:mb-4 text-blue-400 mt-4 sm:mt-0">Soul Deckbuilder</h1>
+            <p class="text-gray-300 mb-6 sm:mb-8 max-w-lg text-base sm:text-lg">드로우, 카드 사용 등 모든 행동에 '영혼'을 사용하는 로그라이크 덱빌딩 게임입니다.</p>
             
-            <div class="bg-gray-800 p-6 rounded-lg mb-8 text-left border border-gray-700 w-full max-w-md">
-                <h2 class="text-xl font-bold mb-4 text-yellow-400">조작법 & 규칙</h2>
-                <ul class="list-disc pl-5 text-gray-300 space-y-2">
-                    <li><strong class="text-white">숫자키 (1~9)</strong> : 손패의 카드 사용</li>
-                    <li><strong class="text-white">Shift</strong> : 턴 종료</li>
-                    <li><strong class="text-white">Spacebar</strong> : 확인 / 넘어가기</li>
-                    <li><strong class="text-white">마우스</strong> : 버튼 클릭 및 선택</li>
+            <div class="bg-gray-800 p-5 sm:p-6 rounded-lg mb-6 sm:mb-8 text-left border border-gray-700 w-full max-w-md">
+                <h2 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-yellow-400">조작법 & 규칙</h2>
+                <ul class="list-disc pl-5 text-gray-300 space-y-1.5 sm:space-y-2 text-sm sm:text-base">
+                    <li><strong class="text-white">PC 조작</strong> : 숫자키(1~9) 카드 선택, Space 사용/확인, Shift 턴 종료, R 드로우, M 지도</li>
+                    <li><strong class="text-white">모바일 터치</strong> : 카드 탭으로 선택 → 공격은 적 탭, 스킬·파워는 플레이어/화면 탭으로 사용</li>
+                    <li><strong class="text-white">전리품/유물</strong> : 탭하여 사용·정보 확인 (전투 중 전리품 길게 누르기/우클릭: 버리기, 상점: 판매)</li>
+                    <li>얻는 방어도만큼 적의 공격을 막을 수 있음</li>
                     <li>전투 시작 시 영혼 +15 획득</li>
                     <li>턴 시작 시 3장 자동 드로우 (무료)</li>
                     <li>상점에서 50~70 영혼으로 패시브 능력을 가진 <strong>유물(Relic)</strong> 구매 가능</li>
                 </ul>
             </div>
-            <button onclick="startGame()" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xl shadow-lg transition transform hover:scale-105">게임 시작</button>
+            <button onclick="startGame()" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xl shadow-lg transition transform hover:scale-105 mb-4 sm:mb-0">게임 시작</button>
         </div>
 
         <!-- 2. 맵 화면 -->
-        <div id="screen-map" class="hidden absolute inset-0 z-40 bg-gray-800 flex flex-col items-center p-8">
-            <h2 class="text-3xl font-bold text-white mb-2">맵 이동</h2>
-            <div class="flex items-center gap-6 mb-4">
+        <div id="screen-map" class="hidden absolute inset-0 z-40 bg-gray-800 flex flex-col items-center p-4 sm:p-8">
+            <h2 class="text-2xl sm:text-3xl font-bold text-white mb-2">맵 이동</h2>
+            <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-6 mb-3 sm:mb-4 text-sm sm:text-base">
+                <div class="text-red-400 font-bold">❤️ 체력: <span id="map-hp">0</span> / <span id="map-maxhp">0</span></div>
                 <div class="text-yellow-400 font-bold">보유 영혼: <span id="map-soul">0</span></div>
-                <div class="text-purple-300 text-sm flex items-center gap-1">보유 유물: <span id="map-relics-list" class="flex gap-1 text-base">없음</span></div>
+                <div class="text-purple-300 text-xs sm:text-sm flex flex-wrap items-center justify-center gap-1">보유 유물: <span id="map-relics-list" class="flex flex-wrap gap-1 text-sm sm:text-base">없음</span></div>
             </div>
             
-            <div id="map-container" class="flex-1 w-full max-w-3xl relative mt-4 bg-gray-900 rounded-xl border border-gray-700 overflow-x-auto overflow-y-hidden custom-scrollbar">
+            <div id="map-container" class="flex-1 w-full max-w-3xl relative mt-2 sm:mt-4 bg-gray-900 rounded-xl border border-gray-700 overflow-x-auto overflow-y-hidden custom-scrollbar">
                 <!-- 스크롤 가능 영역, 너비 300% -->
                 <div id="map-scroll-area" class="h-full relative w-[300%] min-w-[300%]">
                     <!-- SVG를 이용해 노드 사이의 길(선)을 그립니다 -->
@@ -146,221 +234,228 @@
         </div>
 
         <!-- 3. 전투 화면 -->
-        <div id="screen-combat" class="hidden absolute inset-0 z-30 bg-gray-900 flex flex-col">
+        <div id="screen-combat" onclick="onCombatScreenClick(event)" class="hidden absolute inset-0 z-30 bg-gray-900 flex flex-col">
             <!-- 피격 플래시 효과 -->
             <div id="damage-flash" class="hidden absolute inset-0 bg-red-600 z-50 pointer-events-none opacity-0 transition-opacity duration-200"></div>
             
             <!-- 상단 상태 바 -->
-            <div class="p-4 flex justify-between items-center bg-gray-800 border-b border-gray-700">
-                <div class="flex items-center gap-4">
-                    <div class="text-yellow-400 font-bold text-xl flex items-center gap-2">
-                        <span class="text-2xl">✨</span> 영혼: <span id="combat-soul">0</span>
+            <div class="p-2 sm:p-4 flex flex-wrap justify-between items-center gap-2 bg-gray-800 border-b border-gray-700">
+                <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+                    <div class="text-yellow-400 font-bold text-base sm:text-xl flex items-center gap-1 sm:gap-2">
+                        <span class="text-lg sm:text-2xl">✨</span> 영혼: <span id="combat-soul">0</span>
                     </div>
                     <!-- 전투 중 유물 아이콘 표시 -->
-                    <div id="combat-relics-list" class="flex gap-2"></div>
+                    <div id="combat-relics-list" class="flex flex-wrap gap-1 sm:gap-2"></div>
                     
-                    <div class="h-8 border-l border-gray-600 mx-1"></div>
+                    <div class="hidden sm:block h-8 border-l border-gray-600 mx-1"></div>
                     
                     <!-- 전리품 표시 영역 (최대 3칸) -->
-                    <div class="flex items-center gap-2">
-                        <span class="text-gray-400 text-sm font-bold">전리품:</span>
+                    <div class="flex items-center gap-1.5 sm:gap-2">
+                        <span class="text-gray-400 text-xs sm:text-sm font-bold">전리품:</span>
                         <div id="combat-loots-list" class="flex gap-1">
                             <!-- 자바스크립트로 전리품 슬롯 3칸 동적 생성 -->
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <button onclick="openMapView()" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white border border-gray-500 shadow flex items-center gap-2 text-sm font-bold transition">
-                        <span>🗺️</span> 지도 보기
+                <div class="flex items-center gap-2 sm:gap-4 ml-auto">
+                    <button onclick="openMapView()" class="bg-gray-700 hover:bg-gray-600 px-2.5 py-1.5 sm:px-3 sm:py-1 rounded text-white border border-gray-500 shadow flex items-center gap-1.5 text-xs sm:text-sm font-bold transition">
+                        <span>🗺️</span> 지도
                     </button>
-                    <div class="text-gray-400">덱: <span id="combat-deck-count">0</span> | 버림: <span id="combat-discard-count">0</span></div>
+                    <div class="text-gray-400 text-xs sm:text-base">덱: <span id="combat-deck-count">0</span> | 버림: <span id="combat-discard-count">0</span></div>
                 </div>
             </div>
 
             <!-- 전투 영역 -->
-            <div class="flex-1 flex justify-between items-end pt-10 px-28 pb-4 relative">
+            <div class="flex-1 flex justify-between items-end pt-14 sm:pt-10 px-4 sm:px-12 md:px-28 pb-3 sm:pb-4 relative min-h-0">
                 
-                <!-- 왼쪽 아래: 뽑을 카드 아이콘 -->
-                <button onclick="openDeckView()" class="absolute bottom-4 left-8 w-16 h-20 bg-blue-900 border-2 border-blue-600 rounded flex flex-col items-center justify-center hover:bg-blue-800 transition shadow-lg z-20">
-                    <span class="text-2xl">🎴</span>
-                    <span class="text-[10px] font-bold mt-1 text-blue-200">뽑을 패</span>
+                <!-- 뽑을 카드 아이콘 (모바일: 상단 좌측 / PC: 하단 좌측) -->
+                <button onclick="openDeckView()" class="absolute top-2 left-2 md:top-auto md:bottom-4 md:left-8 w-14 h-12 md:w-16 md:h-20 bg-blue-900 border-2 border-blue-600 rounded flex flex-row md:flex-col items-center justify-center gap-1 md:gap-0 hover:bg-blue-800 transition shadow-lg z-20">
+                    <span class="text-lg md:text-2xl">🎴</span>
+                    <span class="hidden md:inline text-[10px] font-bold mt-1 text-blue-200">뽑을 패</span>
                     <span id="floating-deck-count" class="text-white text-sm font-bold">0</span>
                 </button>
 
                 <!-- 플레이어 -->
-                <div class="flex flex-col items-center z-10 w-40 relative bottom-2">
-                    <div id="player-avatar" class="text-8xl mb-2 transition-transform">👤</div>
+                <div id="player-target-area" onclick="onPlayerClick(event)" class="flex flex-col items-center z-10 w-32 sm:w-40 relative bottom-1 sm:bottom-2 cursor-pointer">
+                    <div id="player-avatar" class="text-5xl sm:text-7xl md:text-8xl mb-1 sm:mb-2 transition-transform">👤</div>
                     <!-- 플레이어 방어도 표시 (영구 방어도 + 일반 방어도 분리 표시) -->
-                    <div id="player-block-display" class="text-blue-400 font-bold mb-1 opacity-0 transition-opacity">🛡️ 방어도 <span id="player-block">0</span></div>
-                    <div class="w-full bg-gray-700 h-6 rounded-full overflow-hidden border border-gray-600 relative shadow-md">
+                    <div id="player-block-display" class="text-blue-400 text-xs sm:text-base font-bold mb-1 opacity-0 transition-opacity">🛡️ 방어도 <span id="player-block">0</span></div>
+                    <div class="w-full bg-gray-700 h-5 sm:h-6 rounded-full overflow-hidden border border-gray-600 relative shadow-md">
                         <div id="player-hp-bar" class="hp-bar-fill bg-red-500 h-full w-full"></div>
-                        <div class="absolute inset-0 flex items-center justify-center text-xs font-bold text-white text-shadow">
+                        <div class="absolute inset-0 flex items-center justify-center text-[11px] sm:text-xs font-bold text-white text-shadow">
                             <span id="player-hp">100</span> / <span id="player-maxhp">100</span>
                         </div>
                     </div>
                     <!-- 플레이어 버프/디버프 표시 컨테이너 -->
-                    <div id="player-debuffs" class="flex gap-1 mt-2 min-h-[24px] pointer-events-none"></div>
+                    <div id="player-debuffs" class="flex flex-wrap justify-center gap-1 mt-1.5 sm:mt-2 min-h-[24px] pointer-events-none"></div>
                 </div>
 
                 <!-- 적 -->
-                <div id="enemy-target-area" onclick="onEnemyClick()" class="flex flex-col items-center z-10 w-40 relative bottom-2 cursor-pointer hover:opacity-90">
-                    <div id="enemy-intent" class="relative group bg-gray-800 border border-gray-600 px-3 py-1 rounded-full mb-4 text-red-400 font-bold flex items-center gap-2 pointer-events-auto cursor-help z-20">
+                <div id="enemy-target-area" onclick="onEnemyClick()" class="flex flex-col items-center z-10 w-32 sm:w-40 relative bottom-1 sm:bottom-2 cursor-pointer hover:opacity-90">
+                    <div id="enemy-name" class="text-xs font-bold text-gray-300 mb-1 tracking-wide pointer-events-none text-center"></div>
+                    <div id="enemy-intent" onclick="onEnemyIntentClick(event)" class="relative group bg-gray-800 border border-gray-600 px-2.5 sm:px-3 py-1 rounded-full mb-2 sm:mb-4 text-xs sm:text-base text-red-400 font-bold flex items-center gap-1 sm:gap-2 pointer-events-auto cursor-help z-20">
                         <span id="enemy-intent-val">⚔️ 8</span>
-                        <!-- 공격 의도 툴팁 -->
-                        <div class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-red-500 w-48 z-50 text-center pointer-events-none">
+                        <!-- 공격 의도 툴팁 (PC 호버) -->
+                        <div class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden md:group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-red-500 w-48 z-50 text-center pointer-events-none">
                             <span class="font-bold text-red-400 mb-0.5">적의 행동</span>
                             <span id="enemy-intent-desc" class="text-gray-300 break-keep">일반 공격입니다.</span>
                         </div>
                     </div>
-                    <div id="enemy-block-display" class="text-blue-400 font-bold mb-1 opacity-0 transition-opacity">🛡️ 방어도 <span id="enemy-block">0</span></div>
-                    <div id="enemy-emoji" class="text-8xl mb-2 pointer-events-none">👾</div>
+                    <div id="enemy-block-display" class="text-blue-400 text-xs sm:text-base font-bold mb-1 opacity-0 transition-opacity">🛡️ 방어도 <span id="enemy-block">0</span></div>
+                    <div id="enemy-emoji" class="text-5xl sm:text-7xl md:text-8xl mb-1 sm:mb-2 pointer-events-none">👾</div>
                     
                     <!-- 디버프 표시 컨테이너 -->
-                    <div id="enemy-debuffs" class="flex gap-1 mb-1 min-h-[24px] pointer-events-none"></div>
+                    <div id="enemy-debuffs" class="flex flex-wrap justify-center gap-1 mb-1 min-h-[24px] pointer-events-none"></div>
                     
-                    <div class="w-full bg-gray-700 h-6 rounded-full overflow-hidden border border-gray-600 relative pointer-events-none shadow-md">
+                    <div class="w-full bg-gray-700 h-5 sm:h-6 rounded-full overflow-hidden border border-gray-600 relative pointer-events-none shadow-md">
                         <div id="enemy-hp-bar" class="hp-bar-fill bg-red-600 h-full w-full"></div>
-                        <div class="absolute inset-0 flex items-center justify-center text-xs font-bold text-white text-shadow">
+                        <div class="absolute inset-0 flex items-center justify-center text-[11px] sm:text-xs font-bold text-white text-shadow">
                             <span id="enemy-hp">40</span> / <span id="enemy-maxhp">40</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- 오른쪽 아래: 버린 카드 아이콘 -->
-                <button onclick="openDiscardView()" class="absolute bottom-4 right-8 w-16 h-20 bg-gray-800 border-2 border-gray-600 rounded flex flex-col items-center justify-center hover:bg-gray-700 transition shadow-lg z-20">
-                    <span class="text-2xl">🗑️</span>
-                    <span class="text-[10px] font-bold mt-1 text-gray-300">버린 패</span>
+                <!-- 버린 카드 아이콘 (모바일: 상단 우측 / PC: 하단 우측) -->
+                <button onclick="openDiscardView()" class="absolute top-2 right-2 md:top-auto md:bottom-4 md:right-8 w-14 h-12 md:w-16 md:h-20 bg-gray-800 border-2 border-gray-600 rounded flex flex-row md:flex-col items-center justify-center gap-1 md:gap-0 hover:bg-gray-700 transition shadow-lg z-20">
+                    <span class="text-lg md:text-2xl">🗑️</span>
+                    <span class="hidden md:inline text-[10px] font-bold mt-1 text-gray-300">버린 패</span>
                     <span id="floating-discard-count" class="text-white text-sm font-bold">0</span>
                 </button>
 
             </div>
 
-            <!-- 하단 UI (카드 & 컨트롤) -->
-            <div class="h-56 bg-gray-800 border-t border-gray-700 p-4 flex gap-4 items-center">
-                <!-- 드로우 버튼 -->
-                <button id="draw-btn" onclick="manualDraw()" class="w-24 h-32 flex-shrink-0 bg-blue-700 hover:bg-blue-600 rounded-lg flex flex-col items-center justify-center border-2 border-blue-400 shadow-lg transition transform hover:scale-105 relative">
-                    <span class="text-3xl mb-1">🃏</span>
-                    <span class="font-bold">드로우 (R)</span>
-                    <span id="draw-cost-display" class="text-yellow-300 text-sm mt-1">영혼 2</span>
-                    <span id="draw-limit-display" class="text-xs text-gray-300 mt-1 font-bold">(남은 횟수: 3)</span>
-                </button>
+            <!-- 모바일 대상 안내 배너 (카드 선택 시 표시) -->
+            <div id="mobile-target-banner" class="hidden md:hidden bg-gray-900/95 border-t border-gray-700 px-3 py-1.5 text-center text-xs font-bold text-yellow-300"></div>
 
-                <!-- 패 (Hand) -->
-                <div id="hand-container" class="flex-1 flex overflow-visible items-center justify-center px-4 h-full">
-                    <!-- 카드가 자바스크립트를 통해 동적으로 생성됩니다. -->
+            <!-- 하단 UI (카드 & 컨트롤) -->
+            <div class="h-auto md:h-56 bg-gray-800 border-t border-gray-700 p-2 sm:p-4 flex flex-col md:flex-row gap-2 md:gap-4 items-center">
+                <!-- 모바일 상단 액션 바 (PC에서는 contents로 좌/우 배치 유지) -->
+                <div class="flex md:contents justify-between gap-2 w-full">
+                    <!-- 드로우 버튼 -->
+                    <button id="draw-btn" onclick="manualDraw()" class="flex-1 md:flex-none md:w-24 h-12 md:h-32 md:order-1 flex-shrink-0 bg-blue-700 hover:bg-blue-600 rounded-lg flex flex-row md:flex-col items-center justify-center gap-1.5 md:gap-0 px-2 md:px-0 border-2 border-blue-400 shadow-lg transition transform md:hover:scale-105 relative">
+                        <span class="text-xl md:text-3xl md:mb-1">🃏</span>
+                        <span class="font-bold text-sm md:text-base">드로우<span class="hidden md:inline"> (R)</span></span>
+                        <span id="draw-cost-display" class="text-yellow-300 text-xs md:text-sm md:mt-1">영혼 2</span>
+                        <span id="draw-limit-display" class="text-[11px] md:text-xs text-gray-200 md:text-gray-300 md:mt-1 font-bold">(남은 횟수: 3)</span>
+                    </button>
+
+                    <!-- 턴 종료 버튼 -->
+                    <button onclick="endTurn()" class="flex-1 md:flex-none md:w-24 h-12 md:h-32 md:order-3 flex-shrink-0 bg-red-700 hover:bg-red-600 rounded-lg flex flex-row md:flex-col items-center justify-center gap-1.5 md:gap-0 px-2 md:px-0 border-2 border-red-400 shadow-lg transition transform md:hover:scale-105">
+                        <span class="text-xl md:text-3xl md:mb-1">⏳</span>
+                        <span class="font-bold text-sm md:text-base">턴 종료</span>
+                        <span class="hidden md:inline text-gray-300 text-xs mt-1">(Shift)</span>
+                    </button>
                 </div>
 
-                <!-- 턴 종료 버튼 -->
-                <button onclick="endTurn()" class="w-24 h-32 flex-shrink-0 bg-red-700 hover:bg-red-600 rounded-lg flex flex-col items-center justify-center border-2 border-red-400 shadow-lg transition transform hover:scale-105">
-                    <span class="text-3xl mb-1">⏳</span>
-                    <span class="font-bold">턴 종료</span>
-                    <span class="text-gray-300 text-xs mt-1">(Shift)</span>
-                </button>
+                <!-- 패 (Hand) -->
+                <div id="hand-container" class="w-full md:flex-1 md:order-2 flex overflow-visible items-center md:justify-center md:px-4 md:h-full">
+                    <!-- 카드가 자바스크립트를 통해 동적으로 생성됩니다. -->
+                </div>
             </div>
         </div>
 
         <!-- 4. 전투 보상 화면 -->
-        <div id="screen-reward" class="hidden absolute inset-0 z-40 bg-gray-900 bg-opacity-95 flex flex-col items-center justify-center p-8">
-            <h2 class="text-4xl font-bold text-yellow-400 mb-4">전투 승리!</h2>
-            <div id="elite-reward-msg" class="hidden text-2xl font-bold text-purple-400 mb-4 bg-purple-900/50 px-6 py-2 rounded-lg border border-purple-500">
+        <div id="screen-reward" class="hidden absolute inset-0 z-40 bg-gray-900 bg-opacity-95 flex flex-col items-center justify-start sm:justify-center p-5 sm:p-8 overflow-y-auto">
+            <h2 class="text-3xl sm:text-4xl font-bold text-yellow-400 mb-3 sm:mb-4 mt-4 sm:mt-0">전투 승리!</h2>
+            <div id="elite-reward-msg" class="hidden text-lg sm:text-2xl font-bold text-purple-400 mb-3 sm:mb-4 bg-purple-900/50 px-4 sm:px-6 py-2 rounded-lg border border-purple-500 text-center">
                 💎 유물 획득: <span id="reward-relic-name"></span>
             </div>
-            <div id="loot-reward-msg" class="hidden text-xl font-bold text-green-400 mb-4 bg-green-900/50 px-6 py-2 rounded-lg border border-green-500">
+            <div id="loot-reward-msg" class="hidden text-base sm:text-xl font-bold text-green-400 mb-3 sm:mb-4 bg-green-900/50 px-4 sm:px-6 py-2 rounded-lg border border-green-500 text-center">
                 🎁 전리품 획득: <span id="reward-loot-name"></span>
             </div>
-            <div class="text-xl mb-8">획득한 영혼: <span id="reward-soul-amount" class="text-yellow-400 font-bold">15</span></div>
-            <h3 class="text-2xl mb-4">카드 1장을 선택하세요</h3>
-            <div id="reward-cards" class="flex gap-6 mb-10">
+            <div class="text-lg sm:text-xl mb-6 sm:mb-8">획득한 영혼: <span id="reward-soul-amount" class="text-yellow-400 font-bold">15</span></div>
+            <h3 class="text-xl sm:text-2xl mb-4">카드 1장을 선택하세요</h3>
+            <div id="reward-cards" class="flex flex-wrap justify-center gap-4 sm:gap-6 mb-8 sm:mb-10">
                 <!-- 보상 카드 3장 동적 생성 -->
             </div>
-            <button onclick="skipReward()" class="px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white">(Space) 건너뛰기</button>
+            <button onclick="skipReward()" class="px-6 py-3 sm:py-2 bg-gray-600 hover:bg-gray-500 rounded text-white mb-4 sm:mb-0">(Space) 건너뛰기</button>
         </div>
 
         <!-- 5. 상점 화면 -->
-        <div id="screen-shop" class="hidden absolute inset-0 z-40 bg-gray-900 flex flex-col items-center p-8">
-            <h2 class="text-4xl font-bold text-yellow-500 mb-2">상점 ⛺</h2>
+        <div id="screen-shop" class="hidden absolute inset-0 z-40 bg-gray-900 flex flex-col items-center p-4 sm:p-8 overflow-y-auto">
+            <h2 class="text-3xl sm:text-4xl font-bold text-yellow-500 mb-2">상점 ⛺</h2>
             
-            <div class="flex justify-between w-full max-w-4xl mb-6">
-                <div class="text-yellow-400 font-bold text-xl">보유 영혼: <span id="shop-soul">0</span></div>
-                <div class="flex items-center gap-3">
-                    <span class="text-gray-400 text-sm font-bold">내 전리품:</span>
+            <div class="flex flex-wrap justify-between items-center gap-2 w-full max-w-4xl mb-4 sm:mb-6">
+                <div class="text-yellow-400 font-bold text-lg sm:text-xl">보유 영혼: <span id="shop-soul">0</span></div>
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <span class="text-gray-400 text-xs sm:text-sm font-bold">내 전리품(탭 판매):</span>
                     <div id="shop-loots-list" class="flex gap-2">
                         <!-- 전리품 판매 슬롯 동적 생성 -->
                     </div>
                 </div>
             </div>
             
-            <div class="flex flex-col gap-6 w-full max-w-4xl">
+            <div class="flex flex-col gap-4 sm:gap-6 w-full max-w-4xl">
                 <!-- 상단: 서비스 & 유물 판매 -->
-                <div class="flex gap-6 w-full">
+                <div class="flex flex-col md:flex-row gap-4 sm:gap-6 w-full">
                     <!-- 서비스 -->
-                    <div class="w-1/3 bg-gray-800 p-5 rounded-lg border border-gray-700 flex flex-col">
-                        <h3 class="text-xl font-bold mb-4 text-center">서비스</h3>
-                        <button onclick="buyHeal()" class="w-full py-4 bg-green-700 hover:bg-green-600 rounded-lg flex flex-col items-center transition my-auto">
-                            <span class="text-xl">❤️ 체력 20 회복</span>
-                            <span class="text-yellow-300 mt-1">영혼 15 소모</span>
+                    <div class="w-full md:w-1/3 bg-gray-800 p-4 sm:p-5 rounded-lg border border-gray-700 flex flex-col">
+                        <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-center">서비스</h3>
+                        <button onclick="buyHeal()" class="w-full py-3 sm:py-4 bg-green-700 hover:bg-green-600 rounded-lg flex flex-col items-center transition my-auto">
+                            <span class="text-lg sm:text-xl">❤️ 체력 20 회복</span>
+                            <span class="text-yellow-300 mt-1 text-sm sm:text-base">영혼 15 소모</span>
                         </button>
                     </div>
                     
                     <!-- 유물 구매 섹션 -->
-                    <div class="w-2/3 bg-gray-800 p-5 rounded-lg border border-gray-700">
-                        <h3 class="text-xl font-bold mb-3 text-center text-purple-400">💎 유물 구매</h3>
-                        <div id="shop-relics" class="flex justify-center gap-4">
+                    <div class="w-full md:w-2/3 bg-gray-800 p-4 sm:p-5 rounded-lg border border-gray-700">
+                        <h3 class="text-lg sm:text-xl font-bold mb-3 text-center text-purple-400">💎 유물 구매</h3>
+                        <div id="shop-relics" class="flex flex-wrap justify-center gap-3 sm:gap-4">
                             <!-- 유물 상품 동적 생성 -->
                         </div>
                     </div>
                 </div>
 
                 <!-- 하단: 카드 판매 -->
-                <div class="w-full bg-gray-800 p-5 rounded-lg border border-gray-700">
-                    <h3 class="text-xl font-bold mb-3 text-center">카드 구매</h3>
-                    <div id="shop-cards" class="flex justify-center gap-4">
+                <div class="w-full bg-gray-800 p-4 sm:p-5 pb-12 rounded-lg border border-gray-700">
+                    <h3 class="text-lg sm:text-xl font-bold mb-3 text-center">카드 구매</h3>
+                    <div id="shop-cards" class="flex flex-wrap justify-center gap-x-4 gap-y-10">
                         <!-- 상점 카드 동적 생성 -->
                     </div>
                 </div>
             </div>
-            <button onclick="leaveShop()" class="mt-6 px-8 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg shadow-lg">상점 나가기 (Space)</button>
+            <button onclick="leaveShop()" class="mt-6 mb-4 px-8 py-3 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded-lg shadow-lg">상점 나가기 (Space)</button>
         </div>
 
         <!-- 6. 이벤트 화면 -->
-        <div id="screen-event" class="hidden absolute inset-0 z-40 bg-gray-900 flex flex-col items-center justify-center p-8">
-            <h2 id="event-title" class="text-4xl font-bold text-purple-400 mb-6">의문의 제단 ❓</h2>
-            <div class="bg-gray-800 p-8 rounded-lg border border-gray-700 max-w-lg text-center mb-8 relative">
-                <p id="event-desc" class="text-lg text-gray-300 mb-6">당신은 피가 묻은 제단을 발견했습니다. 체력을 바치면 영혼을 얻을 수 있을 것 같습니다.</p>
+        <div id="screen-event" class="hidden absolute inset-0 z-40 bg-gray-900 flex flex-col items-center justify-start sm:justify-center p-5 sm:p-8 overflow-y-auto">
+            <h2 id="event-title" class="text-3xl sm:text-4xl font-bold text-purple-400 mb-5 sm:mb-6 mt-6 sm:mt-0 text-center">의문의 제단 ❓</h2>
+            <div class="bg-gray-800 p-5 sm:p-8 rounded-lg border border-gray-700 w-full max-w-lg text-center mb-8 relative">
+                <p id="event-desc" class="text-base sm:text-lg text-gray-300 mb-6">당신은 피가 묻은 제단을 발견했습니다. 체력을 바치면 영혼을 얻을 수 있을 것 같습니다.</p>
                 <div class="flex flex-col gap-4">
-                    <button id="event-btn1" onclick="resolveEvent(1)" class="px-6 py-4 bg-red-700 hover:bg-red-600 rounded-lg font-bold transition flex justify-between items-center w-full min-w-[300px]">
-                        <span id="event-btn1-text">체력을 바친다</span>
-                        <span id="event-btn1-sub" class="text-sm font-normal text-right ml-4">(-10 체력, +20 영혼)</span>
+                    <button id="event-btn1" onclick="resolveEvent(1)" class="px-4 sm:px-6 py-4 bg-red-700 hover:bg-red-600 rounded-lg font-bold transition flex justify-between items-center w-full text-sm sm:text-base">
+                        <span id="event-btn1-text" class="text-left">체력을 바친다</span>
+                        <span id="event-btn1-sub" class="text-xs sm:text-sm font-normal text-right ml-3">(-10 체력, +20 영혼)</span>
                     </button>
-                    <button id="event-btn2" onclick="resolveEvent(2)" class="px-6 py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold transition flex justify-between items-center w-full min-w-[300px]">
-                        <span id="event-btn2-text">무시하고 지나간다 (Space)</span>
-                        <span id="event-btn2-sub" class="text-sm font-normal text-right ml-4">변화 없음</span>
+                    <button id="event-btn2" onclick="resolveEvent(2)" class="px-4 sm:px-6 py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold transition flex justify-between items-center w-full text-sm sm:text-base">
+                        <span id="event-btn2-text" class="text-left">무시하고 지나간다 (Space)</span>
+                        <span id="event-btn2-sub" class="text-xs sm:text-sm font-normal text-right ml-3">변화 없음</span>
                     </button>
                 </div>
             </div>
         </div>
 
         <!-- 7. 결과 화면 -->
-        <div id="screen-result" class="hidden absolute inset-0 z-50 bg-black bg-opacity-90 flex flex-col items-center justify-center p-8 text-center">
-            <h1 id="result-title" class="text-6xl font-bold mb-4">결과</h1>
-            <p id="result-desc" class="text-xl text-gray-300 mb-8">게임 설명</p>
+        <div id="screen-result" class="hidden absolute inset-0 z-50 bg-black bg-opacity-90 flex flex-col items-center justify-center p-6 sm:p-8 text-center overflow-y-auto">
+            <h1 id="result-title" class="text-4xl sm:text-6xl font-bold mb-4">결과</h1>
+            <p id="result-desc" class="text-lg sm:text-xl text-gray-300 mb-8">게임 설명</p>
             <button onclick="initGame()" class="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xl shadow-lg transition">다시 하기 (Space)</button>
         </div>
 
         <!-- 8. 버린 패 선택 모달 -->
-        <div id="modal-discard-select" class="hidden absolute inset-0 z-50 bg-black bg-opacity-95 flex flex-col items-center p-12 text-center">
-            <h2 class="text-3xl font-bold text-blue-400 mb-6 mt-10">버린 패에서 가져올 카드를 선택하세요</h2>
+        <div id="modal-discard-select" class="hidden absolute inset-0 z-50 bg-black bg-opacity-95 flex flex-col items-center p-5 sm:p-12 text-center overflow-y-auto">
+            <h2 class="text-2xl sm:text-3xl font-bold text-blue-400 mb-4 sm:mb-6 mt-4 sm:mt-10">버린 패에서 가져올 카드를 선택하세요</h2>
             <div id="discard-select-cards" class="flex flex-wrap justify-center gap-4 max-w-4xl overflow-y-auto max-h-[60vh] p-4">
                 <!-- 자바스크립트 생성 -->
             </div>
-            <button onclick="closeDiscardSelect()" class="mt-8 px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white text-xl shadow">취소</button>
+            <button onclick="closeDiscardSelect()" class="mt-6 sm:mt-8 px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white text-lg sm:text-xl shadow">취소</button>
         </div>
 
         <!-- 9. 현재 위치(지도) 보기 모달 -->
-        <div id="modal-map-view" class="hidden absolute inset-0 z-50 bg-black bg-opacity-95 flex flex-col items-center p-8">
-            <div class="flex justify-between items-center w-full max-w-3xl mb-4 mt-4">
-                <h2 class="text-3xl font-bold text-white">현재 위치 🗺️</h2>
-                <button onclick="closeMapView()" class="px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded shadow-lg text-lg">닫기 (M)</button>
+        <div id="modal-map-view" class="hidden absolute inset-0 z-50 bg-black bg-opacity-95 flex flex-col items-center p-4 sm:p-8">
+            <div class="flex justify-between items-center w-full max-w-3xl mb-4 mt-2 sm:mt-4">
+                <h2 class="text-2xl sm:text-3xl font-bold text-white">현재 위치 🗺️</h2>
+                <button onclick="closeMapView()" class="px-4 sm:px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded shadow-lg text-base sm:text-lg">닫기 (M)</button>
             </div>
             
             <div id="minimap-container" class="flex-1 w-full max-w-3xl relative mt-2 bg-gray-900 rounded-xl border border-gray-700 overflow-x-auto overflow-y-hidden custom-scrollbar">
@@ -372,10 +467,10 @@
         </div>
 
         <!-- 10. 덱 / 버린 패 목록 보기 모달 -->
-        <div id="modal-card-list" class="hidden absolute inset-0 z-50 bg-black bg-opacity-95 flex flex-col items-center p-8">
-            <div class="flex justify-between items-center w-full max-w-4xl mb-6 mt-4">
-                <h2 id="card-list-title" class="text-3xl font-bold text-white">카드 목록</h2>
-                <button onclick="closeCardList()" class="px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded shadow-lg text-lg">닫기 (Esc)</button>
+        <div id="modal-card-list" class="hidden absolute inset-0 z-50 bg-black bg-opacity-95 flex flex-col items-center p-4 sm:p-8">
+            <div class="flex justify-between items-center w-full max-w-4xl mb-4 sm:mb-6 mt-2 sm:mt-4">
+                <h2 id="card-list-title" class="text-2xl sm:text-3xl font-bold text-white">카드 목록</h2>
+                <button onclick="closeCardList()" class="px-4 sm:px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded shadow-lg text-base sm:text-lg">닫기 (Esc)</button>
             </div>
             <div id="card-list-container" class="flex flex-wrap justify-center gap-4 w-full max-w-4xl overflow-y-auto max-h-[75vh] p-4 custom-scrollbar">
                 <!-- 자바스크립트 생성 -->
@@ -383,12 +478,12 @@
         </div>
 
         <!-- 11. 카드 확인 (예지) 모달 -->
-        <div id="modal-peek-cards" class="hidden absolute inset-0 z-50 bg-black bg-opacity-95 flex flex-col items-center justify-center p-8">
-            <h2 class="text-3xl font-bold text-purple-400 mb-6 mt-4">다음 뽑을 카드</h2>
-            <div id="peek-cards-container" class="flex justify-center gap-8 w-full max-w-4xl p-4">
+        <div id="modal-peek-cards" class="hidden absolute inset-0 z-50 bg-black bg-opacity-95 flex flex-col items-center justify-center p-5 sm:p-8 overflow-y-auto">
+            <h2 class="text-2xl sm:text-3xl font-bold text-purple-400 mb-6 mt-4">다음 뽑을 카드</h2>
+            <div id="peek-cards-container" class="flex flex-wrap justify-center gap-6 sm:gap-8 w-full max-w-4xl p-4">
                 <!-- 자바스크립트 생성 -->
             </div>
-            <button onclick="closePeekModal()" class="mt-8 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded shadow-lg text-xl">닫기 (Space / Esc)</button>
+            <button onclick="closePeekModal()" class="mt-8 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded shadow-lg text-lg sm:text-xl">닫기 (Space / Esc)</button>
         </div>
 
     </div>
@@ -453,6 +548,16 @@
             playerDebuffs: { vulnerable: 0, weak: 0, frail: 0 },
             playerStrength: 0, // 전리품으로 얻는 전투 내내 유지되는 힘
             playerTempStrength: 0, // 전리품으로 얻는 해당 턴에만 유지되는 힘
+            playerDexterity: 0, // 견고 (방어도 증가)
+            attacksPlayedThisTurn: 0, // 이번 턴 사용한 공격 카드 수
+            attackBlockThisTurn: 0, // 이번 턴 공격 카드 사용 시 얻는 방어도
+            
+            powerBuffs: {
+                extraDraw: 0,
+                freeCardPerTurn: 0,
+                freeCardActive: 0,
+                endTurnPermBlock: 0
+            },
             
             mapGraph: null,
             currentNodeId: 'start',
@@ -489,6 +594,70 @@
             }
         ];
 
+        // 정예 몬스터 DB (3종)
+        const ELITE_DB = [
+            {
+                id: 'abyssExecutioner', emoji: '🪓', maxHp: 105, name: '심연의 집행자',
+                getIntent: (t) => {
+                    const phase = (t - 1) % 3;
+                    if (phase === 0) return { type: 'attack_debuff', dmg: 12, debuff: 'weak', debuffDuration: 2, intentDesc: '기선 제압: 12 피해를 주고 플레이어에게 약화를 2턴 부여합니다.' };
+                    if (phase === 1) return { type: 'buff_defend', str: 3, block: 12, intentDesc: '처형 준비: 힘을 3 증가시키고 방어도를 12 얻습니다.' };
+                    return { type: 'attack', dmg: 20, intentDesc: '처형: 20 피해의 강력한 일격을 가합니다!' };
+                }
+            },
+            {
+                id: 'soulDevourer', emoji: '🦇', maxHp: 95, name: '영혼 포식자',
+                getIntent: (t) => {
+                    const phase = (t - 1) % 3;
+                    if (phase === 0) return { type: 'attack', dmg: 9, hits: 2, intentDesc: '빠른 할퀴기: 9 피해로 2번 연속 공격합니다.' };
+                    if (phase === 1) return { type: 'steal_heal', stealSoul: 5, heal: 10, intentDesc: '영혼 흡수: 플레이어의 영혼을 5 강탈하고 체력을 10 회복합니다.' };
+                    return { type: 'attack_debuff', dmg: 16, debuff: 'frail', debuffDuration: 2, intentDesc: '부식 일격: 16 피해를 주고 플레이어에게 손상을 2턴 부여합니다.' };
+                }
+            },
+            {
+                id: 'corruptedGolem', emoji: '🗿', maxHp: 115, name: '타락한 수호석상',
+                getIntent: (t) => {
+                    const phase = (t - 1) % 3;
+                    if (phase === 0) return { type: 'buff_defend', block: 20, str: 2, intentDesc: '단단한 경화: 방어도를 20 얻고 힘을 2 증가시킵니다.' };
+                    if (phase === 1) return { type: 'attack_defend_debuff', dmg: 12, block: 10, debuff: 'vulnerable', debuffDuration: 1, intentDesc: '방패 돌진: 12 피해를 주고 방어도 10을 얻으며, 취약 1턴을 부여합니다.' };
+                    return { type: 'attack', dmg: 10, hits: 2, intentDesc: '연속 강타: 10 피해로 2번 연속 공격합니다.' };
+                }
+            }
+        ];
+
+        // 보스 몬스터 DB (3종)
+        const BOSS_DB = [
+            {
+                id: 'malakar', emoji: '💀', maxHp: 180, name: '영혼 군주 말라카르',
+                getIntent: (t) => {
+                    const phase = (t - 1) % 4;
+                    if (phase === 0) {
+                        const pool = shuffle(['vulnerable', 'weak', 'frail']);
+                        return { type: 'debuff', debuffs: [pool[0], pool[1]], debuffDuration: 2, intentDesc: '왕의 저주: 취약, 약화, 손상 중 무작위 2가지를 2턴 부여합니다.' };
+                    }
+                    if (phase === 1) return { type: 'attack', dmg: 10, hits: 2, intentDesc: '영혼 수확: 10 피해로 2번 연속 공격합니다.' };
+                    if (phase === 2) return { type: 'buff_defend', block: 18, str: 3, intentDesc: '영혼 갑주: 방어도를 18 얻고 힘을 3 증가시킵니다.' };
+                    return { type: 'attack', dmg: 28, intentDesc: '영혼 파멸: 28 피해의 광역 필살기를 시전합니다!' };
+                }
+            },
+            {
+                id: 'vulcanus', emoji: '🔨', maxHp: 170, name: '지옥의 대장장이 불카누스',
+                getIntent: (t) => {
+                    const phase = (t - 1) % 3;
+                    if (phase === 0) return { type: 'buff_defend', block: 22, str: 2, intentDesc: '무기 담금질: 방어도를 22 얻고 힘을 2 증가시킵니다.' };
+                    if (phase === 1) return { type: 'attack_debuff', dmg: 3, hits: 4, debuff: 'frail', debuffDuration: 1, intentDesc: '연속 망치질: 3 피해로 4번 연속 공격하고 손상 1턴을 부여합니다.' };
+                    return { type: 'attack', dmg: 24, intentDesc: '용암 내리찍기: 24 피해의 묵직한 일격을 가합니다.' };
+                }
+            },
+            {
+                id: 'voidHydra', emoji: '🐉', maxHp: 175, name: '공허의 히드라',
+                getIntent: (t) => {
+                    if (t % 2 === 1) return { type: 'attack', dmg: 3, hits: 3, intentDesc: '세 머리의 포효: 3 피해로 3번 연속 공격합니다.' };
+                    return { type: 'heal_buff', heal: 8, str: 2, intentDesc: '재생과 진화: 체력을 8 회복하고 힘을 2 증가시킵니다.' };
+                }
+            }
+        ];
+
         // 몬스터별 고유 전리품 DB
         const LOOT_DB = {
             'glassCannon': { id: 'loot_wolf', name: '늑대의 송곳니', icon: '🐺', desc: '이번 턴 힘 +3', type: 'temp_str', val: 3 },
@@ -514,24 +683,76 @@
             cycleShield: { id: 'cycleShield', title: '순환의 방패', type: 'skill', value: 4, cost: 2, desc: `방어도 4를 얻습니다. 다음 1번의 드로우 비용이 무료가 됩니다.` },
             accelStrike: { id: 'accelStrike', title: '가속 타격', type: 'attack', value: 6, cost: 2, desc: `피해 6을 줍니다. 이번 턴 드로우 가능 횟수를 1 늘립니다.` },
             retrieveShield: { id: 'retrieveShield', title: '회수 방패', type: 'skill', value: 6, cost: 2, desc: `방어도 6을 얻습니다. 버린 패에서 카드 1장을 가져옵니다.` },
-            foresightShield: { id: 'foresightShield', title: '예지 방패', type: 'skill', value: 5, cost: 1, desc: `방어도 5를 얻습니다. 뽑을 카드가 2장 이상이라면 맨 위 2장을 확인합니다.` }
+            foresightShield: { id: 'foresightShield', title: '예지 방패', type: 'skill', value: 5, cost: 1, desc: `방어도 5를 얻습니다. 뽑을 카드가 2장 이상이라면 맨 위 2장을 확인합니다.` },
+            
+            // 신규 추가 카드
+            shieldBash: { id: 'shieldBash', title: '몸치기', type: 'attack', value: 0, cost: 3, desc: `나의 현재 방어도만큼 피해를 줍니다.` },
+            exposeWeakness: { id: 'exposeWeakness', title: '약점 노출', type: 'skill', value: 0, cost: 3, desc: `적에게 '취약'을 2턴 부여합니다.` },
+            flurry: { id: 'flurry', title: '난도질', type: 'attack', value: 3, cost: 3, hits: 3, desc: `피해 3씩 3번 연속으로 줍니다.` },
+            bloodOath: { id: 'bloodOath', title: '피의 대가', type: 'skill', value: 0, cost: 0, desc: `내 체력을 5 잃습니다. 대신 영혼을 10 획득합니다.` },
+            smokeBomb: { id: 'smokeBomb', title: '연막탄', type: 'skill', value: 4, cost: 3, desc: `방어도 4를 얻고, 적에게 '약화'를 2턴 부여합니다.` },
+            ambush: { id: 'ambush', title: '기습 타격', type: 'attack', value: 6, cost: 2, desc: `피해 6을 줍니다. 적에게 디버프가 걸려 있다면 2번 연속 공격합니다.` },
+            emergencyWard: { id: 'emergencyWard', title: '위기 모면', type: 'skill', value: 7, cost: 2, desc: `방어도 7을 얻습니다. 내 체력이 50% 이하라면 대신 방어도 12를 얻습니다.` },
+            combatStance: { id: 'combatStance', title: '전투 태세', type: 'skill', value: 0, cost: 3, desc: `이번 턴 동안 공격 카드를 사용할 때마다 방어도를 2 얻습니다.` },
+            firstStrike: { id: 'firstStrike', title: '선제 타격', type: 'attack', value: 8, cost: 2, desc: `피해 8을 줍니다. 이번 턴 처음 사용하는 공격 카드라면 피해가 12로 증가합니다.` },
+
+            // 신규 파워 카드 5종
+            powerDraw: { id: 'powerDraw', title: '마나의 흐름', type: 'power', value: 0, cost: 5, desc: `매 턴마다 할 수 있는 드로우 횟수가 1 증가합니다. (소멸)` },
+            powerFree: { id: 'powerFree', title: '영혼 해방', type: 'power', value: 0, cost: 7, desc: `매 턴마다 처음 사용하는 카드의 코스트가 1회 무료가 됩니다. (소멸)` },
+            powerBlock: { id: 'powerBlock', title: '재생하는 갑옷', type: 'power', value: 0, cost: 6, desc: `매 턴 종료 시 초록(영구) 방어도를 3 획득합니다. (소멸)` },
+            powerStrength: { id: 'powerStrength', title: '악마화', type: 'power', value: 0, cost: 7, desc: `이번 전투 동안 힘이 2 증가합니다. (소멸)` },
+            powerDexterity: { id: 'powerDexterity', title: '견고한 자세', type: 'power', value: 0, cost: 7, desc: `이번 전투 동안 견고(카드로 얻는 방어도)가 2 증가합니다. (소멸)` }
         };
 
-        function showFloatingText(targetId, text, colorClass) {
+        function showFloatingText(targetId, text, colorClass, offsetY = 0) {
             const target = document.getElementById(targetId);
             if (!target) return;
             const rect = target.getBoundingClientRect();
             const parentRect = document.getElementById('game-container').getBoundingClientRect();
             
             const el = document.createElement('div');
-            el.className = `absolute font-bold text-lg z-50 pointer-events-none animate-float ${colorClass}`;
+            const sizeClass = colorClass.includes('text-2xl') || colorClass.includes('text-xl') ? '' : 'text-lg';
+            el.className = `absolute font-bold ${sizeClass} z-50 pointer-events-none animate-float ${colorClass}`;
             el.style.left = `${rect.left - parentRect.left + rect.width / 2}px`;
-            el.style.top = `${rect.top - parentRect.top}px`;
+            el.style.top = `${rect.top - parentRect.top + offsetY}px`;
             el.textContent = text;
             
             document.getElementById('game-container').appendChild(el);
             setTimeout(() => el.remove(), 1000);
         }
+
+        let mobileToastTimer = null;
+        function showMobileToast(title, desc, borderColorClass = 'border-blue-400', titleColorClass = 'text-blue-300') {
+            const toast = document.getElementById('mobile-toast');
+            const titleEl = document.getElementById('mobile-toast-title');
+            const descEl = document.getElementById('mobile-toast-desc');
+            if (!toast || !titleEl || !descEl) return;
+
+            toast.className = `absolute top-14 left-1/2 transform -translate-x-1/2 z-[60] bg-gray-900/95 border ${borderColorClass} text-white px-4 py-2 rounded-lg shadow-2xl max-w-[90%] text-center pointer-events-none transition-opacity duration-200`;
+            titleEl.className = `font-bold text-sm ${titleColorClass}`;
+            titleEl.textContent = title;
+            descEl.innerHTML = desc;
+
+            toast.classList.remove('hidden');
+            if (mobileToastTimer) clearTimeout(mobileToastTimer);
+            mobileToastTimer = setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 2600);
+        }
+
+        window.showRelicInfo = function(relicId, event) {
+            if (event) event.stopPropagation();
+            const relic = RELIC_DB[relicId];
+            if (!relic) return;
+            showMobileToast(`${relic.icon} ${relic.title}`, relic.desc, 'border-purple-400', 'text-purple-300');
+        };
+
+        window.onEnemyIntentClick = function(event) {
+            if (event) event.stopPropagation();
+            const descEl = document.getElementById('enemy-intent-desc');
+            if (!descEl) return;
+            showMobileToast('적의 행동', descEl.innerHTML, 'border-red-500', 'text-red-400');
+        };
 
         // =====================================================================
         // [유틸리티 및 초기화 함수]
@@ -561,9 +782,16 @@
             state.permanentBlock = 0;
             state.freeDrawAvailable = false;
             state.relics = [];
-            state.loots = []; // 전리품 유지
+            state.loots = [];
             state.foreseenCards = 0;
+            state.selectedCardIndex = -1;
+            state.isAnimating = false;
             state.flags = {};
+            
+            state.playerDexterity = 0;
+            state.attacksPlayedThisTurn = 0;
+            state.attackBlockThisTurn = 0;
+            state.powerBuffs = { extraDraw: 0, freeCardPerTurn: 0, freeCardActive: 0, endTurnPermBlock: 0 };
             
             state.deck = [];
             for(let i=0; i<4; i++) state.deck.push({...CARD_DB.strike});
@@ -586,13 +814,18 @@
         function hasRelic(relicId) {
             return state.relics.some(r => r.id === relicId);
         }
-
         function updateGlobalUI() {
             // Player HP
             document.getElementById('player-hp').textContent = state.hp;
             document.getElementById('player-maxhp').textContent = state.maxHp;
             const hpPercent = Math.max(0, (state.hp / state.maxHp) * 100);
             document.getElementById('player-hp-bar').style.width = `${hpPercent}%`;
+            
+            // Map HP
+            const mapHp = document.getElementById('map-hp');
+            if (mapHp) mapHp.textContent = state.hp;
+            const mapMaxHp = document.getElementById('map-maxhp');
+            if (mapMaxHp) mapMaxHp.textContent = state.maxHp;
             
             // Player Block (영구 방어도 + 일반 방어도)
             const blockEl = document.getElementById('player-block-display');
@@ -618,10 +851,17 @@
                 if (totalStr > 0) {
                     playerDebuffContainer.innerHTML += `<div class="bg-red-900 border border-red-500 text-red-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">💪 힘 (${totalStr})</div>`;
                 }
+                // 신규 파워 버프들 표시
+                if (state.playerDexterity > 0) playerDebuffContainer.innerHTML += `<div class="bg-blue-900 border border-blue-500 text-blue-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">🛡️ 견고 (${state.playerDexterity})</div>`;
+                if (state.powerBuffs.extraDraw > 0) playerDebuffContainer.innerHTML += `<div class="bg-indigo-900 border border-indigo-500 text-indigo-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">🃏 드로우 (+${state.powerBuffs.extraDraw})</div>`;
+                if (state.powerBuffs.freeCardActive > 0) playerDebuffContainer.innerHTML += `<div class="bg-green-900 border border-green-500 text-green-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">✨ 무료 시전 (${state.powerBuffs.freeCardActive})</div>`;
+                if (state.powerBuffs.endTurnPermBlock > 0) playerDebuffContainer.innerHTML += `<div class="bg-emerald-900 border border-emerald-500 text-emerald-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">🟩 재생 (${state.powerBuffs.endTurnPermBlock})</div>`;
+                if (state.attackBlockThisTurn > 0) playerDebuffContainer.innerHTML += `<div class="bg-cyan-900 border border-cyan-500 text-cyan-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">⚔️🛡️ 태세 (+${state.attackBlockThisTurn})</div>`;
+                
                 // 디버프 표시
                 if (state.playerDebuffs.vulnerable > 0) playerDebuffContainer.innerHTML += `<div class="bg-purple-900 border border-purple-500 text-purple-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">💔 취약 (${state.playerDebuffs.vulnerable})</div>`;
                 if (state.playerDebuffs.weak > 0) playerDebuffContainer.innerHTML += `<div class="bg-gray-700 border border-gray-400 text-gray-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">📉 약화 (${state.playerDebuffs.weak})</div>`;
-                if (state.playerDebuffs.frail > 0) playerDebuffContainer.innerHTML += `<div class="bg-blue-900 border border-blue-500 text-blue-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">🛡️ 손상 (${state.playerDebuffs.frail})</div>`;
+                if (state.playerDebuffs.frail > 0) playerDebuffContainer.innerHTML += `<div class="bg-amber-900 border border-amber-500 text-amber-200 text-xs px-1.5 py-0.5 rounded flex items-center gap-1 font-bold">🩹 손상 (${state.playerDebuffs.frail})</div>`;
             }
 
             // Souls
@@ -637,18 +877,18 @@
                 combatRelicList.innerHTML = '';
             } else {
                 const mapRelicHTML = state.relics.map(r => `
-                    <div class="relative group cursor-help bg-gray-700 px-2 py-0.5 rounded border border-purple-500 flex items-center gap-1">
-                        <span>${r.icon}</span><span class="text-sm text-purple-200">${r.title}</span>
-                        <div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 hidden group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-purple-400 w-44 z-50 pointer-events-none text-center">
+                    <div onclick="showRelicInfo('${r.id}', event)" class="relative group cursor-pointer bg-gray-700 px-2 py-0.5 rounded border border-purple-500 flex items-center gap-1">
+                        <span>${r.icon}</span><span class="text-xs sm:text-sm text-purple-200">${r.title}</span>
+                        <div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 hidden md:group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-purple-400 w-44 z-50 pointer-events-none text-center">
                             <span class="font-bold text-purple-300 mb-0.5">${r.title}</span><span class="text-gray-300">${r.desc}</span>
                         </div>
                     </div>`).join(' ');
                 mapRelicList.innerHTML = mapRelicHTML;
 
                 const combatRelicHTML = state.relics.map(r => `
-                    <div class="relative group cursor-help bg-gray-700 px-2 py-1 rounded border border-purple-500 flex items-center gap-1">
-                        <span>${r.icon}</span><span class="text-xs text-purple-200 font-bold">${r.title}</span>
-                        <div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 hidden group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-purple-400 w-44 z-50 pointer-events-none text-center">
+                    <div onclick="showRelicInfo('${r.id}', event)" class="relative group cursor-pointer bg-gray-700 px-1.5 sm:px-2 py-1 rounded border border-purple-500 flex items-center gap-1">
+                        <span>${r.icon}</span><span class="hidden sm:inline text-xs text-purple-200 font-bold">${r.title}</span>
+                        <div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 hidden md:group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-purple-400 w-44 z-50 pointer-events-none text-center">
                             <span class="font-bold text-purple-300 mb-0.5">${r.title}</span><span class="text-gray-300">${r.desc}</span>
                         </div>
                     </div>`).join(' ');
@@ -663,12 +903,18 @@
                     if(i < state.loots.length) {
                         const l = state.loots[i];
                         lootHTML += `
-                            <div oncontextmenu="discardLoot(${i}, event)" onclick="useLoot(${i}, event)" class="relative group cursor-pointer bg-gray-700 w-8 h-8 rounded border border-green-500 flex items-center justify-center hover:bg-gray-600 shadow-lg transition">
+                            <div oncontextmenu="discardLoot(${i}, event)"
+                                 onclick="onLootTap(${i}, event)"
+                                 ontouchstart="startLootLongPress(${i}, event)"
+                                 ontouchend="cancelLootLongPress()"
+                                 ontouchmove="cancelLootLongPress()"
+                                 ontouchcancel="cancelLootLongPress()"
+                                 class="relative group cursor-pointer bg-gray-700 w-8 h-8 rounded border border-green-500 flex items-center justify-center hover:bg-gray-600 shadow-lg transition">
                                 <span class="text-lg">${l.icon}</span>
-                                <div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 hidden group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-green-400 w-40 z-50 pointer-events-none text-center">
+                                <div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 hidden md:group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-green-400 w-44 z-50 pointer-events-none text-center">
                                     <span class="font-bold text-green-400 mb-0.5">${l.name}</span>
                                     <span class="text-gray-300">${l.desc}</span>
-                                    <span class="text-gray-400 mt-1 text-[10px] font-bold">좌클릭: 사용 / 우클릭: 버리기</span>
+                                    <span class="text-gray-400 mt-1 text-[10px] font-bold">탭/좌클릭: 사용 / 길게 누르기·우클릭: 버리기</span>
                                 </div>
                             </div>
                         `;
@@ -717,6 +963,38 @@
         // =====================================================================
         // [전리품(Loot) 로직]
         // =====================================================================
+        let lootLongPressTimer = null;
+        let lootLongPressTriggered = false;
+
+        window.startLootLongPress = function(index, event) {
+            lootLongPressTriggered = false;
+            if (lootLongPressTimer) clearTimeout(lootLongPressTimer);
+            lootLongPressTimer = setTimeout(() => {
+                lootLongPressTriggered = true;
+                const loot = state.loots[index];
+                if (loot) {
+                    discardLoot(index);
+                    showMobileToast('전리품 버림', `${loot.icon} ${loot.name}을(를) 버렸습니다.`, 'border-red-400', 'text-red-300');
+                }
+            }, 600);
+        };
+
+        window.cancelLootLongPress = function() {
+            if (lootLongPressTimer) {
+                clearTimeout(lootLongPressTimer);
+                lootLongPressTimer = null;
+            }
+        };
+
+        window.onLootTap = function(index, event) {
+            if (event) event.stopPropagation();
+            if (lootLongPressTriggered) {
+                lootLongPressTriggered = false;
+                return;
+            }
+            useLoot(index, event);
+        };
+
         window.useLoot = function(index, event) {
             if(event) event.preventDefault();
             if(state.currentScreen !== 'combat') {
@@ -741,7 +1019,7 @@
                 const debuffs = ['vulnerable', 'weak', 'frail'];
                 const randomD = debuffs[Math.floor(Math.random() * debuffs.length)];
                 let name = randomD === 'vulnerable' ? '취약' : (randomD === 'weak' ? '약화' : '손상');
-                let icon = randomD === 'vulnerable' ? '💔' : (randomD === 'weak' ? '📉' : '🛡️');
+                let icon = randomD === 'vulnerable' ? '💔' : (randomD === 'weak' ? '📉' : '🩹');
                 
                 if(!state.enemy.debuffs) state.enemy.debuffs = {};
                 if (state.enemy.debuffs[randomD]) {
@@ -898,32 +1176,34 @@
             let maxHp = CONFIG.ENEMY_NORMAL_HP;
             let emoji = '👾';
             let id = 'normal';
+            let name = '적';
             let template = null;
 
-            if (!customEnemy && !isBoss && !isElite) {
-                template = ENEMY_DB[Math.floor(Math.random() * ENEMY_DB.length)];
+            if (!customEnemy) {
+                if (isBoss) {
+                    template = BOSS_DB[Math.floor(Math.random() * BOSS_DB.length)];
+                } else if (isElite) {
+                    template = ELITE_DB[Math.floor(Math.random() * ELITE_DB.length)];
+                } else {
+                    template = ENEMY_DB[Math.floor(Math.random() * ENEMY_DB.length)];
+                }
             }
 
             if (customEnemy) {
                 hp = maxHp = customEnemy.hp;
                 emoji = customEnemy.emoji;
                 id = customEnemy.id;
-            } else if (isBoss) {
-                hp = maxHp = CONFIG.ENEMY_BOSS_HP;
-                emoji = '👹';
-                id = 'boss';
-            } else if (isElite) {
-                hp = maxHp = CONFIG.ENEMY_ELITE_HP;
-                emoji = '👿';
-                id = 'elite';
+                name = customEnemy.name || '영혼 강탈자';
             } else if (template) {
                 hp = maxHp = template.maxHp;
                 emoji = template.emoji;
                 id = template.id;
+                name = template.name;
             }
 
             state.enemy = {
                 id: id,
+                name: name,
                 hp: hp,
                 maxHp: maxHp,
                 emoji: emoji,
@@ -933,6 +1213,7 @@
                 block: 0,
                 strength: 0,
                 turnCount: 0,
+                awakened: false,
                 intent: null,
                 debuffs: {}
             };
@@ -941,6 +1222,10 @@
             state.playerDebuffs = { vulnerable: 0, weak: 0, frail: 0 };
             state.playerStrength = 0; 
             state.playerTempStrength = 0; 
+            state.playerDexterity = 0;
+            state.attacksPlayedThisTurn = 0;
+            state.attackBlockThisTurn = 0;
+            state.powerBuffs = { extraDraw: 0, freeCardPerTurn: 0, freeCardActive: 0, endTurnPermBlock: 0 };
             
             let bonusSoul = CONFIG.SOUL_COMBAT_START_BONUS;
             if (hasRelic('soulVessel')) {
@@ -964,9 +1249,12 @@
         function startTurn() {
             state.block = 0; // 일반 방어도는 매턴 소멸
             state.playerTempStrength = 0; // 전리품 일시적 힘은 매턴 소멸
+            state.attacksPlayedThisTurn = 0;
+            state.attackBlockThisTurn = 0;
             
             state.enemy.turnCount += 1;
-            state.drawsLeft = 3; 
+            state.drawsLeft = 3 + state.powerBuffs.extraDraw; 
+            state.powerBuffs.freeCardActive = state.powerBuffs.freeCardPerTurn;
             state.selectedCardIndex = -1;
             
             if (state.playerDebuffs.vulnerable > 0) state.playerDebuffs.vulnerable--;
@@ -1004,6 +1292,7 @@
         }
 
         window.manualDraw = function() {
+            if (state.isAnimating) return;
             if (state.drawsLeft <= 0) {
                 showFloatingText('draw-btn', '턴당 최대 3회만 가능!', 'text-red-400');
                 return;
@@ -1026,11 +1315,7 @@
             if (!state.enemy) return;
             let intent = { type: 'attack', dmg: CONFIG.ENEMY_NORMAL_ATK, intentDesc: '일반 공격입니다.' };
 
-            if (state.enemy.isBoss) {
-                intent = { type: 'attack', dmg: CONFIG.ENEMY_BOSS_ATK, intentDesc: '보스의 묵직하고 강력한 공격입니다.' };
-            } else if (state.enemy.isElite) {
-                intent = { type: 'attack', dmg: CONFIG.ENEMY_ELITE_ATK, intentDesc: '정예 적의 위협적인 공격입니다.' };
-            } else if (state.enemy.id === 'soulStealer') {
+            if (state.enemy.id === 'soulStealer') {
                 intent = { type: 'attack', dmg: 8, intentDesc: '플레이어가 피격 시 얻을 영혼을 훔쳐가며, 추가로 영혼 3을 강탈합니다.' };
             } else if (state.enemy.template) {
                 intent = state.enemy.template.getIntent(state.enemy.turnCount);
@@ -1046,6 +1331,34 @@
             let blockBonus = hasRelic('ironShield') ? 1 : 0;
             let totalPlayerStr = state.playerStrength + state.playerTempStrength;
 
+            // 방패 가격 전용 데미지 표시 처리
+            if (card.id === 'shieldBash') {
+                let baseDmg = state.block + state.permanentBlock;
+                let totalDmg = baseDmg + dmgBonus + totalPlayerStr;
+                if (state.playerDebuffs && state.playerDebuffs.weak > 0) totalDmg = Math.floor(totalDmg * 0.8);
+                if (state.enemy && state.enemy.debuffs && state.enemy.debuffs['vulnerable']) totalDmg = Math.floor(totalDmg * 1.5);
+                return `나의 현재 방어도만큼 피해를 줍니다. <br/>(현재 예상 피해: <span class="${totalDmg > 0 ? 'text-red-400 font-bold' : 'font-bold'}">${totalDmg}</span>)`;
+            }
+
+            // 선제 타격 전용 데미지 표시 처리
+            if (card.id === 'firstStrike') {
+                let baseDmg = state.attacksPlayedThisTurn === 0 ? 12 : 8;
+                let totalDmg = baseDmg + dmgBonus + totalPlayerStr;
+                if (state.playerDebuffs && state.playerDebuffs.weak > 0) totalDmg = Math.floor(totalDmg * 0.8);
+                if (state.enemy && state.enemy.debuffs && state.enemy.debuffs['vulnerable']) totalDmg = Math.floor(totalDmg * 1.5);
+                const colorCls = totalDmg > card.value ? 'text-red-400 font-bold' : 'font-bold';
+                return `피해 <span class="${colorCls}">${totalDmg}</span>을 줍니다. 이번 턴 처음 사용하는 공격 카드라면 피해가 12로 증가합니다.`;
+            }
+
+            // 위기 모면 전용 방어도 표시 처리
+            if (card.id === 'emergencyWard') {
+                let baseBlk = state.hp <= state.maxHp * 0.5 ? 12 : 7;
+                let totalBlk = baseBlk + blockBonus + state.playerDexterity;
+                if (state.playerDebuffs && state.playerDebuffs.frail > 0) totalBlk = Math.floor(totalBlk * 0.8);
+                const colorCls = totalBlk > card.value ? 'text-blue-400 font-bold' : 'font-bold';
+                return `방어도 <span class="${colorCls}">${totalBlk}</span>을 얻습니다. 내 체력이 50% 이하라면 대신 방어도 12를 얻습니다.`;
+            }
+
             if (card.type === 'attack') {
                 let totalDmg = card.value + dmgBonus + totalPlayerStr;
                 if (state.playerDebuffs && state.playerDebuffs.weak > 0) totalDmg = Math.floor(totalDmg * 0.8);
@@ -1059,8 +1372,8 @@
                 } else {
                     desc = desc.replace(`피해 ${card.value}`, `피해 <span class="font-bold">${totalDmg}</span>`);
                 }
-            } else if (card.type === 'skill') {
-                let totalBlk = card.value + blockBonus;
+            } else if (card.type === 'skill' && card.value > 0) {
+                let totalBlk = card.value + blockBonus + state.playerDexterity;
                 if (state.playerDebuffs && state.playerDebuffs.frail > 0) totalBlk = Math.floor(totalBlk * 0.8);
 
                 if (totalBlk !== card.value) {
@@ -1076,9 +1389,10 @@
             const container = document.getElementById('hand-container');
             container.innerHTML = '';
             
+            const isMobile = window.innerWidth <= 768;
             const cardCount = state.hand.length;
             let overlapMargin = '0px';
-            if (cardCount >= 5) overlapMargin = `-${Math.min(52, (cardCount - 4) * 12)}px`;
+            if (!isMobile && cardCount >= 5) overlapMargin = `-${Math.min(52, (cardCount - 4) * 12)}px`;
 
             state.hand.forEach((card, index) => {
                 const cardEl = document.createElement('div');
@@ -1087,21 +1401,72 @@
                 const hoverDesc = getCardDynamicDesc(card, true);
 
                 cardEl.className = `game-card ${isSelected ? 'selected' : ''}`;
-                cardEl.onclick = () => selectCard(index);
+                cardEl.onclick = (e) => { e.stopPropagation(); selectCard(index); };
                 cardEl.onmouseenter = () => { const el = cardEl.querySelector('.card-desc'); if(el) el.innerHTML = hoverDesc; };
                 cardEl.onmouseleave = () => { const el = cardEl.querySelector('.card-desc'); if(el) el.innerHTML = isSelected ? hoverDesc : defaultDesc; };
 
-                if (index > 0) cardEl.style.marginLeft = overlapMargin;
+                if (!isMobile && index > 0) cardEl.style.marginLeft = overlapMargin;
                 cardEl.style.zIndex = index + 1;
 
+                const titleColor = card.type === 'attack' ? 'text-red-400' : (card.type === 'power' ? 'text-purple-400' : 'text-blue-400');
+                let displayCost = card.cost;
+                if (state.powerBuffs.freeCardActive > 0 && displayCost > 0) {
+                    displayCost = `<span class="text-green-400 font-bold drop-shadow-md">0</span>`;
+                }
+
                 cardEl.innerHTML = `
-                    <div class="card-cost">${card.cost}</div>
-                    <div class="card-title text-${card.type === 'attack' ? 'red' : 'blue'}-400">${card.title}</div>
+                    <div class="card-cost">${displayCost}</div>
+                    <div class="card-title ${titleColor}">${card.title}</div>
                     <div class="card-desc">${defaultDesc}</div>
                     <div class="hotkey-hint">${index + 1}</div>
                 `;
                 container.appendChild(cardEl);
             });
+
+            updateEnemyTargetHighlight();
+        }
+
+        function updateEnemyTargetHighlight() {
+            const enemyEmoji = document.getElementById('enemy-emoji');
+            const playerAvatar = document.getElementById('player-avatar');
+            const banner = document.getElementById('mobile-target-banner');
+            if (!enemyEmoji || !playerAvatar) return;
+
+            const selectedCard = state.selectedCardIndex !== -1 ? state.hand[state.selectedCardIndex] : null;
+            if (state.currentScreen === 'combat' && selectedCard) {
+                if (selectedCard.type === 'attack') {
+                    enemyEmoji.classList.add('enemy-target-glow');
+                    playerAvatar.classList.remove('player-skill-glow', 'player-power-glow');
+                    if (banner) {
+                        banner.textContent = `⚔️ [${selectedCard.title}] 적을 탭하여 공격하세요`;
+                        banner.className = 'md:hidden bg-red-950/90 border-t border-red-500 px-3 py-1.5 text-center text-xs font-bold text-red-200';
+                    }
+                } else if (selectedCard.type === 'skill') {
+                    playerAvatar.classList.add('player-skill-glow');
+                    playerAvatar.classList.remove('player-power-glow');
+                    enemyEmoji.classList.remove('enemy-target-glow');
+                    if (banner) {
+                        banner.textContent = `🛡️ [${selectedCard.title}] 플레이어나 화면을 탭하여 사용하세요`;
+                        banner.className = 'md:hidden bg-blue-950/90 border-t border-blue-500 px-3 py-1.5 text-center text-xs font-bold text-blue-200';
+                    }
+                } else if (selectedCard.type === 'power') {
+                    playerAvatar.classList.add('player-power-glow');
+                    playerAvatar.classList.remove('player-skill-glow');
+                    enemyEmoji.classList.remove('enemy-target-glow');
+                    if (banner) {
+                        banner.textContent = `✨ [${selectedCard.title}] 플레이어나 화면을 탭하여 발동하세요`;
+                        banner.className = 'md:hidden bg-purple-950/90 border-t border-purple-500 px-3 py-1.5 text-center text-xs font-bold text-purple-200';
+                    }
+                } else {
+                    enemyEmoji.classList.remove('enemy-target-glow');
+                    playerAvatar.classList.remove('player-skill-glow', 'player-power-glow');
+                    if (banner) banner.classList.add('hidden');
+                }
+            } else {
+                enemyEmoji.classList.remove('enemy-target-glow');
+                playerAvatar.classList.remove('player-skill-glow', 'player-power-glow');
+                if (banner) banner.classList.add('hidden');
+            }
         }
 
         function selectCard(index) {
@@ -1110,26 +1475,60 @@
             renderHand();
         }
 
+        window.onPlayerClick = function(event) {
+            if (state.currentScreen !== 'combat' || state.selectedCardIndex === -1 || state.isAnimating) return;
+            const card = state.hand[state.selectedCardIndex];
+            if (card && (card.type === 'skill' || card.type === 'power')) {
+                if (event) event.stopPropagation();
+                executeSelectedCard();
+            }
+        };
+
         window.onEnemyClick = function() {
             if (state.currentScreen === 'combat' && state.selectedCardIndex !== -1) executeSelectedCard();
         };
 
+        window.onCombatScreenClick = function(event) {
+            if (state.currentScreen !== 'combat' || state.selectedCardIndex === -1 || state.isAnimating) return;
+            const card = state.hand[state.selectedCardIndex];
+            if (!card || (card.type !== 'skill' && card.type !== 'power')) return;
+
+            // 버튼, 다른 카드, 전리품 슬롯, 적 영역(별도 처리) 클릭은 제외
+            if (event.target.closest('button, .game-card, #combat-loots-list, #enemy-target-area')) return;
+
+            executeSelectedCard();
+        };
+
         function executeSelectedCard() {
-            if (state.selectedCardIndex === -1) return;
+            if (state.selectedCardIndex === -1 || state.isAnimating) return;
             const index = state.selectedCardIndex;
             const card = state.hand[index];
             if (!card) return;
 
-            if (state.soul < card.cost) {
+            let actualCost = card.cost;
+            let usedFreeCard = false;
+            if (state.powerBuffs.freeCardActive > 0 && actualCost > 0) {
+                actualCost = 0;
+                usedFreeCard = true;
+            }
+
+            if (state.soul < actualCost) {
                 showFloatingText('combat-soul', '영혼이 부족합니다!', 'text-red-400');
                 return;
             }
+            
+            state.soul -= actualCost;
+            if (usedFreeCard) state.powerBuffs.freeCardActive--;
+            
             state.selectedCardIndex = -1;
+            updateEnemyTargetHighlight();
             playCard(index);
         }
 
         function updateEnemyUI() {
             if (!state.enemy) return;
+            const nameEl = document.getElementById('enemy-name');
+            if (nameEl) nameEl.textContent = state.enemy.name || '';
             document.getElementById('enemy-hp').textContent = state.enemy.hp;
             document.getElementById('enemy-maxhp').textContent = state.enemy.maxHp;
             const enemyHpPercent = Math.max(0, (state.enemy.hp / state.enemy.maxHp) * 100);
@@ -1153,12 +1552,35 @@
                     intentHtml += `⚔️ ${calcDmg}${intent.hits && intent.hits > 1 ? `x${intent.hits}` : ''} `;
                 }
                 if (intent.block) intentHtml += `🛡️ ${intent.block} `;
-                if (intent.str) intentHtml += `💪 `;
-                if (intent.debuff) intentHtml += `☠️ `;
+                if (intent.str) intentHtml += `💪 ${intent.str} `;
+                if (intent.heal) intentHtml += `💚 ${intent.heal} `;
+                if (intent.stealSoul) intentHtml += `👻 -${intent.stealSoul} `;
+                if (intent.debuff || intent.debuffs) {
+                    const dur = intent.debuffDuration || 1;
+                    const debuffList = intent.debuffs || [intent.debuff];
+                    debuffList.forEach(d => {
+                        const dIcon = d === 'vulnerable' ? '💔' : (d === 'weak' ? '📉' : '🩹');
+                        intentHtml += `${dIcon} ${dur} `;
+                    });
+                }
                 
                 document.getElementById('enemy-intent-val').innerHTML = intentHtml;
                 const intentDescEl = document.getElementById('enemy-intent-desc');
-                if (intentDescEl) intentDescEl.textContent = intent.intentDesc || '일반 공격입니다.';
+                if (intentDescEl) {
+                    let descHtml = intent.intentDesc || '일반 공격입니다.';
+                    if (intent.dmg) {
+                        const str = state.enemy.strength || 0;
+                        const hitsText = intent.hits && intent.hits > 1 ? ` (×${intent.hits})` : '';
+                        descHtml += `<span class="block text-yellow-300 font-bold mt-1">공격력: ${intent.dmg} + 힘 ${str}${hitsText}</span>`;
+                    }
+                    if (intent.debuff || intent.debuffs) {
+                        const dur = intent.debuffDuration || 1;
+                        const list = intent.debuffs || [intent.debuff];
+                        const names = list.map(d => d === 'vulnerable' ? '취약' : (d === 'weak' ? '약화' : '손상')).join(', ');
+                        descHtml += `<span class="block text-purple-300 font-bold mt-1">디버프: ${names} (${dur}턴)</span>`;
+                    }
+                    intentDescEl.innerHTML = descHtml;
+                }
             }
 
             const debuffContainer = document.getElementById('enemy-debuffs');
@@ -1181,74 +1603,171 @@
             }
         }
 
-        function playCard(index) {
+        async function playCard(index) {
             const card = state.hand[index];
             if (!card) return;
 
-            state.soul -= card.cost;
+            state.isAnimating = true; // 다단히트 카드 처리 시 꼬임 방지
+
             let dmgBonus = hasRelic('rubyRing') ? 1 : 0;
             let blockBonus = hasRelic('ironShield') ? 1 : 0;
+            
+            if (card.type === 'power') {
+                showFloatingText('player-avatar', `${card.title} 발동!`, 'text-purple-400');
+                if (card.id === 'powerDraw') {
+                    state.powerBuffs.extraDraw++;
+                    state.drawsLeft++;
+                }
+                if (card.id === 'powerFree') {
+                    state.powerBuffs.freeCardPerTurn++;
+                    state.powerBuffs.freeCardActive++; 
+                }
+                if (card.id === 'powerBlock') state.powerBuffs.endTurnPermBlock += 3;
+                if (card.id === 'powerStrength') state.playerStrength += 2;
+                if (card.id === 'powerDexterity') state.playerDexterity += 2;
+                
+                // 파워 카드는 소멸됨 (버린 패로 가지 않음)
+                state.hand.splice(index, 1);
+                
+            } else if (card.type === 'attack') {
+                const isFirstAttackThisTurn = (state.attacksPlayedThisTurn === 0);
+                state.attacksPlayedThisTurn += 1;
 
-            if (card.type === 'attack') {
-                if (state.enemy.debuffs && state.enemy.debuffs['soulMark']) {
-                    state.soul += 1;
-                    showFloatingText('enemy-emoji', '+1 영혼!', 'text-yellow-400');
+                let hits = card.hits || 1;
+                if (card.id === 'ambush' && state.enemy && state.enemy.debuffs && Object.keys(state.enemy.debuffs).length > 0) {
+                    hits = 2;
+                    showFloatingText('enemy-emoji', '기습 성공! (2연타)', 'text-yellow-400', -20);
                 }
 
-                // 플레이어 힘(영구+일시적) 반영
+                let baseCardValue = card.value;
+                if (card.id === 'firstStrike' && isFirstAttackThisTurn) {
+                    baseCardValue = 12;
+                    showFloatingText('player-avatar', '선제 타격 발동! (피해 12)', 'text-yellow-400', -20);
+                }
+
                 let totalPlayerStr = state.playerStrength + state.playerTempStrength;
-                let totalDamage = card.value + dmgBonus + totalPlayerStr;
                 
-                if (state.playerDebuffs.weak > 0) totalDamage = Math.floor(totalDamage * 0.8);
-                // 적이 취약 상태일 경우 데미지 1.5배 증가
-                if (state.enemy.debuffs && state.enemy.debuffs['vulnerable']) {
-                    totalDamage = Math.floor(totalDamage * 1.5);
-                }
+                for (let i = 0; i < hits; i++) {
+                    let totalDamage = baseCardValue + dmgBonus + totalPlayerStr;
 
-                if (state.enemy.block > 0) {
-                    if (totalDamage <= state.enemy.block) {
-                        state.enemy.block -= totalDamage;
-                        totalDamage = 0;
-                    } else {
-                        totalDamage -= state.enemy.block;
-                        state.enemy.block = 0;
+                    // 몸치기(방패 가격) 카드는 현재 방어도로 데미지 계산
+                    if (card.id === 'shieldBash') {
+                        totalDamage = state.block + state.permanentBlock + dmgBonus + totalPlayerStr;
                     }
-                }
-                
-                state.enemy.hp -= totalDamage;
-                if (state.enemy.hp < 0) state.enemy.hp = 0;
-                
-                if (dmgBonus > 0 || totalPlayerStr > 0) {
-                    showFloatingText('player-avatar', `피해 증폭!`, 'text-red-400');
+
+                    // 적이 약화 상태일 경우 피해량 20% 감소
+                    if (state.playerDebuffs.weak > 0) totalDamage = Math.floor(totalDamage * 0.8);
+                    
+                    // 적이 취약 상태일 경우 데미지 1.5배 증가
+                    if (state.enemy.debuffs && state.enemy.debuffs['vulnerable']) {
+                        totalDamage = Math.floor(totalDamage * 1.5);
+                    }
+
+                    let originalTotalDamage = totalDamage; // 방어도 깎기 전 데미지 저장
+                    let enemyHadBlock = state.enemy.block > 0;
+
+                    if (state.enemy.block > 0) {
+                        if (totalDamage <= state.enemy.block) {
+                            state.enemy.block -= totalDamage;
+                            totalDamage = 0;
+                        } else {
+                            totalDamage -= state.enemy.block;
+                            state.enemy.block = 0;
+                        }
+                    }
+                    
+                    // 적이 방어도로 피해를 완벽히 막아냈을 때 텍스트 표시
+                    if (originalTotalDamage > 0 && totalDamage === 0) {
+                        showFloatingText('enemy-emoji', '막음!', 'text-blue-400', 58);
+                    } else if (enemyHadBlock && totalDamage > 0) {
+                        showFloatingText('enemy-emoji', '뚫림!', 'text-red-500', 58);
+                    }
+                    
+                    state.enemy.hp -= totalDamage;
+                    if (state.enemy.hp < 0) state.enemy.hp = 0;
+
+                    if (totalDamage > 0) {
+                        showFloatingText('enemy-emoji', `-${totalDamage}`, 'text-red-500 text-2xl', -(i * 12));
+                    }
+
+                    // 공허의 히드라 특수 기믹: 체력 50% 이하 돌입 시 1회 각성
+                    if (state.enemy.id === 'voidHydra' && !state.enemy.awakened && state.enemy.hp > 0 && state.enemy.hp <= Math.floor(state.enemy.maxHp * 0.5)) {
+                        state.enemy.awakened = true;
+                        state.enemy.block += 30;
+                        state.enemy.intent = { type: 'attack', dmg: 30, intentDesc: '각성한 일격: 공허의 히드라가 30 피해의 필살기를 준비합니다!' };
+                        showFloatingText('enemy-emoji', '🐉 공허의 각성! (방어도 +30)', 'text-purple-400 text-xl', -55);
+                    }
+                    
+                    // 영혼 낙인(Soul Mark) 디버프가 있다면 타격마다 영혼 1 획득
+                    if (state.enemy.debuffs && state.enemy.debuffs['soulMark']) {
+                        state.soul += 1;
+                        // 다단히트 시 텍스트가 너무 겹치지 않게 살짝 위로 띄움
+                        showFloatingText('enemy-emoji', '+1 영혼', 'text-yellow-400', -40 - (i * 15));
+                        updateGlobalUI(); // 즉시 화면 위쪽 영혼 보유량 갱신
+                    }
+                    
+                    if ((dmgBonus > 0 || totalPlayerStr > 0) && i === 0) {
+                        showFloatingText('player-avatar', `피해 증폭!`, 'text-red-400');
+                    }
+
+                    const enemyEmoji = document.getElementById('enemy-emoji');
+                    enemyEmoji.classList.remove('damage-shake');
+                    void enemyEmoji.offsetWidth;
+                    enemyEmoji.classList.add('damage-shake');
+
+                    updateEnemyUI(); // 다단히트마다 체력바 즉시 업데이트
+
+                    if (state.enemy.hp <= 0) break;
+
+                    if (hits > 1 && i < hits - 1) {
+                        await new Promise(r => setTimeout(r, 200));
+                    }
                 }
                 
                 if (card.id === 'soulMark') {
                     if (!state.enemy.debuffs) state.enemy.debuffs = {};
                     if (state.enemy.debuffs['soulMark']) {
                         state.enemy.debuffs['soulMark'].duration += card.debuffDuration || 1;
-                        showFloatingText('enemy-emoji', '낙인 연장!', 'text-purple-400');
+                        showFloatingText('enemy-emoji', '낙인 연장!', 'text-purple-400', 30);
                     } else {
                         state.enemy.debuffs['soulMark'] = { duration: card.debuffDuration || 1, name: '영혼 낙인', icon: '🔥' };
-                        showFloatingText('enemy-emoji', '낙인 부여!', 'text-purple-400');
+                        showFloatingText('enemy-emoji', '낙인 부여!', 'text-purple-400', 30);
                     }
                 }
                 if (card.id === 'accelStrike') {
                     state.drawsLeft += 1;
                     showFloatingText('draw-limit-display', '+1 드로우 횟수', 'text-yellow-400');
                 }
-                
-                const enemyEmoji = document.getElementById('enemy-emoji');
-                enemyEmoji.classList.remove('damage-shake');
-                void enemyEmoji.offsetWidth;
-                enemyEmoji.classList.add('damage-shake');
+                if (state.attackBlockThisTurn > 0) {
+                    let stanceBlk = state.attackBlockThisTurn + state.playerDexterity;
+                    if (state.playerDebuffs.frail > 0) stanceBlk = Math.floor(stanceBlk * 0.8);
+                    if (stanceBlk > 0) {
+                        state.block += stanceBlk;
+                        showFloatingText('player-avatar', `전투 태세: 방어도 +${stanceBlk}`, 'text-blue-400', -25);
+                    }
+                }
+                state.hand.splice(index, 1);
+                state.discard.push(card);
 
             } else if (card.type === 'skill') {
-                let totalBlock = card.value + blockBonus;
+                let baseCardValue = card.value;
+                if (card.id === 'emergencyWard' && state.hp <= state.maxHp * 0.5) {
+                    baseCardValue = 12;
+                    showFloatingText('player-avatar', '위기 모면 발동! (방어도 12)', 'text-blue-300', -20);
+                }
+
+                let totalBlock = baseCardValue > 0 ? (baseCardValue + blockBonus + state.playerDexterity) : 0;
                 if (state.playerDebuffs.frail > 0) totalBlock = Math.floor(totalBlock * 0.8);
 
-                state.block += totalBlock;
-                if (blockBonus > 0) showFloatingText('player-avatar', '유물: 방어도 +1', 'text-blue-400');
+                if (totalBlock > 0) {
+                    state.block += totalBlock;
+                    if (blockBonus > 0) showFloatingText('player-avatar', '유물: 방어도 +1', 'text-blue-400');
+                }
                 
+                if (card.id === 'combatStance') {
+                    state.attackBlockThisTurn += 2;
+                    showFloatingText('player-avatar', '전투 태세! (공격 시 방어도 +2)', 'text-cyan-400');
+                }
                 if (card.id === 'cycleShield') {
                     state.freeDrawAvailable = true;
                     showFloatingText('player-avatar', '다음 드로우 무료!', 'text-green-400');
@@ -1265,20 +1784,52 @@
                         showFloatingText('player-avatar', '뽑을 카드가 부족합니다!', 'text-gray-400');
                     }
                 }
+                if (card.id === 'bloodOath') {
+                    state.hp -= 5;
+                    state.soul += 10;
+                    showFloatingText('player-avatar', '-5 체력, +10 영혼!', 'text-purple-400');
+                    if (state.hp <= 0) {
+                        state.hp = 0;
+                        updateGlobalUI();
+                        setTimeout(() => gameOver(false), 500);
+                    }
+                }
+                if (card.id === 'exposeWeakness') {
+                    if (!state.enemy.debuffs) state.enemy.debuffs = {};
+                    if (state.enemy.debuffs['vulnerable']) state.enemy.debuffs['vulnerable'].duration += 2;
+                    else state.enemy.debuffs['vulnerable'] = { duration: 2, name: '취약', icon: '💔' };
+                    showFloatingText('enemy-emoji', '취약 부여!', 'text-purple-400', 30);
+                }
+                if (card.id === 'smokeBomb') {
+                    if (!state.enemy.debuffs) state.enemy.debuffs = {};
+                    if (state.enemy.debuffs['weak']) state.enemy.debuffs['weak'].duration += 2;
+                    else state.enemy.debuffs['weak'] = { duration: 2, name: '약화', icon: '📉' };
+                    showFloatingText('enemy-emoji', '약화 부여!', 'text-purple-400', 30);
+                }
+                state.hand.splice(index, 1);
+                state.discard.push(card);
             }
-
-            state.hand.splice(index, 1);
-            state.discard.push(card);
 
             renderHand();
             updateGlobalUI();
             updateEnemyUI();
 
+            state.isAnimating = false;
             if (state.enemy.hp <= 0) setTimeout(winCombat, 500);
         }
 
-        window.endTurn = function() {
-            if (state.currentScreen !== 'combat') return;
+        window.endTurn = async function() {
+            if (state.currentScreen !== 'combat' || state.isAnimating) return;
+            state.isAnimating = true; // 적 공격 중 조작 방지
+            state.selectedCardIndex = -1;
+            updateEnemyTargetHighlight();
+
+            if (state.powerBuffs.endTurnPermBlock > 0) {
+                state.permanentBlock += state.powerBuffs.endTurnPermBlock;
+                showFloatingText('player-avatar', `🟩 재생 방어도 +${state.powerBuffs.endTurnPermBlock}!`, 'text-green-400');
+                updateGlobalUI();
+                await new Promise(r => setTimeout(r, 400));
+            }
 
             if (state.enemy) {
                 state.enemy.block = 0;
@@ -1289,7 +1840,8 @@
             
             if (intent.str) {
                 state.enemy.strength += intent.str;
-                showFloatingText('enemy-emoji', `💪 힘 증가!`, 'text-red-400');
+                showFloatingText('enemy-emoji', `💪 힘 +${intent.str}!`, 'text-red-400');
+                await new Promise(r => setTimeout(r, 200));
             }
             if (intent.block) {
                 let blockGained = intent.block;
@@ -1298,12 +1850,32 @@
                 state.enemy.block += blockGained;
                 showFloatingText('enemy-emoji', `🛡️ 방어 태세!`, 'text-blue-400');
                 updateEnemyUI();
+                await new Promise(r => setTimeout(r, 200));
             }
-            if (intent.debuff) {
-                state.playerDebuffs[intent.debuff] = 2;
-                let txt = intent.debuff === 'vulnerable' ? '💔 취약!' : (intent.debuff === 'weak' ? '📉 약화!' : '🛡️ 손상!');
-                showFloatingText('player-avatar', txt, 'text-purple-400');
+            if (intent.heal) {
+                state.enemy.hp = Math.min(state.enemy.maxHp, state.enemy.hp + intent.heal);
+                showFloatingText('enemy-emoji', `💚 체력 +${intent.heal}`, 'text-green-400');
+                updateEnemyUI();
+                await new Promise(r => setTimeout(r, 200));
+            }
+            if (intent.stealSoul) {
+                const stolen = Math.min(state.soul, intent.stealSoul);
+                state.soul -= stolen;
+                showFloatingText('player-avatar', `👻 영혼 강탈! -${stolen}`, 'text-purple-400', -20);
                 updateGlobalUI();
+                await new Promise(r => setTimeout(r, 200));
+            }
+            const debuffList = intent.debuffs ? intent.debuffs : (intent.debuff ? [intent.debuff] : []);
+            if (debuffList.length > 0) {
+                const dur = intent.debuffDuration || 1;
+                const labels = [];
+                debuffList.forEach(d => {
+                    state.playerDebuffs[d] = (state.playerDebuffs[d] || 0) + dur + 1;
+                    labels.push(d === 'vulnerable' ? `💔 취약 (${dur}턴)!` : (d === 'weak' ? `📉 약화 (${dur}턴)!` : `🩹 손상 (${dur}턴)!`));
+                });
+                showFloatingText('player-avatar', labels.join(' '), 'text-purple-400', 30);
+                updateGlobalUI();
+                await new Promise(r => setTimeout(r, 200));
             }
 
             let hits = intent.hits || 1;
@@ -1320,7 +1892,10 @@
                     
                     if (state.playerDebuffs.vulnerable > 0) damage = Math.floor(damage * 1.5);
                     
-                    if ((state.block > 0 || state.permanentBlock > 0) && i === 0) {
+                    let originalDamage = damage; // 방어도 깎기 전 원래 데미지 저장
+                    let playerHadBlock = state.block > 0 || state.permanentBlock > 0;
+
+                    if (playerHadBlock && i === 0) {
                         const blockDisplay = document.getElementById('player-block-display');
                         blockDisplay.classList.add('block-break');
                         setTimeout(() => blockDisplay.classList.remove('block-break'), 300);
@@ -1344,11 +1919,36 @@
                         }
                     }
 
+                    // 방어도로 데미지를 0으로 만들었을 때 "막음!" 텍스트 표시 (위치 40px 아래로 조정)
+                    if (originalDamage > 0 && damage === 0) {
+                        showFloatingText('player-avatar', '막음!', 'text-blue-400', 40);
+                    } else if (playerHadBlock && damage > 0) {
+                        showFloatingText('player-avatar', '뚫림!', 'text-red-500', 40);
+                    }
+
                     if (damage > 0) {
                         state.hp -= damage;
                         totalDamageTakenThisTurn += damage;
+                        showFloatingText('player-avatar', `-${damage}`, 'text-red-500 text-2xl', -(i * 12));
+                        
+                        // 피격 이펙트 즉시 적용 (이전에는 루프 끝나고 한번에 적용됨)
+                        const flash = document.getElementById('damage-flash');
+                        flash.classList.remove('hidden');
+                        flash.style.opacity = '0.4';
+                        setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.classList.add('hidden'), 200); }, 100);
+                        const avatar = document.getElementById('player-avatar');
+                        avatar.classList.add('damage-shake');
+                        setTimeout(() => avatar.classList.remove('damage-shake'), 400);
                     }
+                    
+                    updateGlobalUI(); // 매 타격마다 UI를 즉시 갱신하여 방어도가 깎이는 모습을 보여줌
+
                     if (state.hp <= 0) break;
+                    
+                    // 다단히트일 경우 타격 사이에 딜레이를 주어 순차적으로 보이게 함
+                    if (hits > 1 && i < hits - 1) {
+                        await new Promise(r => setTimeout(r, 400));
+                    }
                 }
             }
 
@@ -1358,33 +1958,53 @@
                     if (soulStolen > 0) {
                         state.soul -= soulStolen;
                         showFloatingText('player-avatar', `영혼 강탈! -${soulStolen}`, 'text-purple-400');
-                    } else showFloatingText('player-avatar', `영혼 강탈!`, 'text-purple-400');
+                    } else {
+                        showFloatingText('player-avatar', `영혼 강탈!`, 'text-purple-400', -35);
+                    }
                 } else {
                     state.soul += totalDamageTakenThisTurn;
-                    showFloatingText('player-avatar', `피격! +${totalDamageTakenThisTurn} 영혼`, 'text-yellow-400');
-                }
-
-                const flash = document.getElementById('damage-flash');
-                flash.classList.remove('hidden');
-                flash.style.opacity = '0.4';
-                setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.classList.add('hidden'), 200); }, 100);
-                const avatar = document.getElementById('player-avatar');
-                avatar.classList.add('damage-shake');
-                setTimeout(() => avatar.classList.remove('damage-shake'), 400);
-
-                if (state.hp <= 0) {
-                    state.hp = 0;
-                    updateGlobalUI();
-                    setTimeout(() => gameOver(false), 500);
-                    return;
+                    showFloatingText('player-avatar', `피격! +${totalDamageTakenThisTurn} 영혼`, 'text-yellow-400', -35);
                 }
             }
 
+            // 턴 종료 시 남은 손패를 버린 패로 이동
             state.discard.push(...state.hand);
             state.hand = [];
+            renderHand();
             updateGlobalUI();
-            startTurn();
+
+            state.isAnimating = false;
+
+            if (state.hp <= 0) {
+                state.hp = 0;
+                updateGlobalUI();
+                setTimeout(() => gameOver(false), 500);
+            } else {
+                startTurn();
+            }
         };
+
+        // 공격 40%, 방어(스킬) 40%, 파워 20% 비율로 중복 없이 카드 추출
+        function getWeightedCards(pool, count) {
+            const pools = {
+                attack: shuffle(pool.filter(c => c.type === 'attack')),
+                skill: shuffle(pool.filter(c => c.type === 'skill')),
+                power: shuffle(pool.filter(c => c.type === 'power'))
+            };
+            const selected = [];
+            for (let i = 0; i < count; i++) {
+                const r = Math.random();
+                let targetType = r < 0.4 ? 'attack' : (r < 0.8 ? 'skill' : 'power');
+                
+                if (pools[targetType].length === 0) {
+                    const availableTypes = Object.keys(pools).filter(t => pools[t].length > 0);
+                    if (availableTypes.length === 0) break;
+                    targetType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+                }
+                selected.push(pools[targetType].pop());
+            }
+            return selected;
+        }
 
         function winCombat() {
             if (hasRelic('vampireTooth')) {
@@ -1430,16 +2050,17 @@
 
             const rewardContainer = document.getElementById('reward-cards');
             rewardContainer.innerHTML = '';
-            const pool = [CARD_DB.heavyStrike, CARD_DB.quickStrike, CARD_DB.ironWall, CARD_DB.cycleShield, CARD_DB.accelStrike, CARD_DB.retrieveShield, CARD_DB.foresightShield];
-            const choices = shuffle([...pool, ...pool]).slice(0, 3);
+            const pool = [CARD_DB.heavyStrike, CARD_DB.quickStrike, CARD_DB.ironWall, CARD_DB.cycleShield, CARD_DB.accelStrike, CARD_DB.retrieveShield, CARD_DB.foresightShield, CARD_DB.shieldBash, CARD_DB.exposeWeakness, CARD_DB.flurry, CARD_DB.bloodOath, CARD_DB.smokeBomb, CARD_DB.ambush, CARD_DB.emergencyWard, CARD_DB.combatStance, CARD_DB.firstStrike, CARD_DB.powerDraw, CARD_DB.powerFree, CARD_DB.powerBlock, CARD_DB.powerStrength, CARD_DB.powerDexterity];
+            const choices = getWeightedCards(pool, 3);
 
             choices.forEach(card => {
                 const cardEl = document.createElement('div');
+                const titleColor = card.type === 'attack' ? 'text-red-400' : (card.type === 'power' ? 'text-purple-400' : 'text-blue-400');
                 cardEl.className = 'game-card cursor-pointer transform hover:scale-110';
                 cardEl.onclick = () => selectRewardCard(card);
                 cardEl.innerHTML = `
                     <div class="card-cost">${card.cost}</div>
-                    <div class="card-title text-${card.type === 'attack' ? 'red' : 'blue'}-400">${card.title}</div>
+                    <div class="card-title ${titleColor}">${card.title}</div>
                     <div class="card-desc">${card.desc}</div>
                 `;
                 rewardContainer.appendChild(cardEl);
@@ -1488,12 +2109,13 @@
 
             const shopContainer = document.getElementById('shop-cards');
             shopContainer.innerHTML = '';
-            const pool = [CARD_DB.heavyStrike, CARD_DB.ironWall, CARD_DB.cycleShield, CARD_DB.accelStrike, CARD_DB.retrieveShield, CARD_DB.foresightShield];
-            const shopCards = shuffle([...pool]).slice(0, 3);
+            const pool = [CARD_DB.heavyStrike, CARD_DB.ironWall, CARD_DB.cycleShield, CARD_DB.accelStrike, CARD_DB.retrieveShield, CARD_DB.foresightShield, CARD_DB.shieldBash, CARD_DB.exposeWeakness, CARD_DB.flurry, CARD_DB.bloodOath, CARD_DB.smokeBomb, CARD_DB.ambush, CARD_DB.emergencyWard, CARD_DB.combatStance, CARD_DB.firstStrike, CARD_DB.powerDraw, CARD_DB.powerFree, CARD_DB.powerBlock, CARD_DB.powerStrength, CARD_DB.powerDexterity];
+            const shopCards = getWeightedCards(pool, 5);
             
             shopCards.forEach(card => {
                 const cardEl = document.createElement('div');
                 const canAfford = state.soul >= CONFIG.SHOP_CARD_COST;
+                const titleColor = card.type === 'attack' ? 'text-red-400' : (card.type === 'power' ? 'text-purple-400' : 'text-blue-400');
                 cardEl.className = `game-card ${canAfford ? '' : 'opacity-50 cursor-not-allowed'}`;
                 cardEl.onclick = () => {
                     if (state.soul >= CONFIG.SHOP_CARD_COST) {
@@ -1505,7 +2127,7 @@
                 };
                 cardEl.innerHTML = `
                     <div class="card-cost">${card.cost}</div>
-                    <div class="card-title text-${card.type === 'attack' ? 'red' : 'blue'}-400">${card.title}</div>
+                    <div class="card-title ${titleColor}">${card.title}</div>
                     <div class="card-desc">${card.desc}</div>
                     <div class="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-yellow-600 text-white text-xs px-2 py-1 rounded">20 영혼</div>
                 `;
@@ -1524,12 +2146,12 @@
                 if(i < state.loots.length) {
                     const l = state.loots[i];
                     lootHTML += `
-                        <div oncontextmenu="sellLoot(${i}, event)" class="relative group cursor-pointer bg-gray-700 w-10 h-10 rounded border border-green-500 flex items-center justify-center hover:bg-gray-600 shadow-lg transition">
+                        <div onclick="sellLoot(${i}, event)" oncontextmenu="sellLoot(${i}, event)" class="relative group cursor-pointer bg-gray-700 w-10 h-10 rounded border border-green-500 flex items-center justify-center hover:bg-gray-600 shadow-lg transition">
                             <span class="text-xl">${l.icon}</span>
-                            <div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 hidden group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-green-400 w-32 z-50 pointer-events-none text-center">
+                            <div class="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 hidden md:group-hover:flex flex-col bg-gray-900 text-white text-xs p-2 rounded shadow-xl border border-green-400 w-32 z-50 pointer-events-none text-center">
                                 <span class="font-bold text-green-400 mb-0.5">${l.name}</span>
                                 <span class="text-yellow-400 font-bold mt-1">판매: ${l.sellPrice} 영혼</span>
-                                <span class="text-gray-400 mt-1 text-[10px] font-bold">우클릭: 판매</span>
+                                <span class="text-gray-400 mt-1 text-[10px] font-bold">클릭/우클릭: 판매</span>
                             </div>
                         </div>
                     `;
@@ -1628,17 +2250,15 @@
                 onBtn2: () => true
             },
             {
-                id: 'locked_ruins', title: '굳게 닫힌 유적 🏛️', desc: '문이 굳게 닫힌 고대 유적을 발견했습니다.',
-                btn1Text: '억지로 문을 연다', btn1Sub: '(-15 체력, +30 영혼)', btn1Color: 'bg-red-700 hover:bg-red-600',
-                btn2Text: '포기한다', btn2Sub: '변화 없음',
+                id: 'trap_path', title: '함정이 가득한 길 🪤', desc: '수많은 함정이 도사리고 있는 위험한 길을 발견했습니다. 지나가려면 끔찍한 고통을 감수해야 할 것 같습니다.',
+                btn1Text: '함정을 뚫고 강행한다', btn1Sub: '(-15 체력)', btn1Color: 'bg-red-700 hover:bg-red-600',
                 onBtn1: () => {
                     if (state.flags.helpedGhost) {
                         state.soul += 30; showFloatingText('event-title', '유령의 도움!', 'text-blue-400'); return true;
                     } else {
-                        if (state.hp > 15) { state.hp -= 15; state.soul += 30; return true; } return false;
+                        state.hp -= 15; return true; // 체력이 부족해도 선택 가능 (죽음 감수)
                     }
-                },
-                onBtn2: () => true
+                }
             }
         ];
 
@@ -1650,24 +2270,33 @@
             let currentBtn1Sub = ev.btn1Sub;
             let currentBtn1Color = ev.btn1Color || 'bg-blue-700 hover:bg-blue-600';
 
-            if (ev.id === 'locked_ruins' && state.flags.helpedGhost) {
-                currentDesc = '굳게 닫힌 고대 유적을 발견했습니다. 그때 도와준 꼬마 유령이 열쇠 구멍으로 들어가 문을 열어줍니다!';
-                currentBtn1Text = '유적의 보물을 챙긴다'; currentBtn1Sub = '(페널티 없이 +30 영혼)'; currentBtn1Color = 'bg-yellow-600 hover:bg-yellow-500';
+            if (ev.id === 'trap_path' && state.flags.helpedGhost) {
+                currentDesc = '함정이 가득한 위험한 길입니다. 그때 도와준 꼬마 유령이 나타나 안전한 샛길과 숨겨진 보물을 안내해 줍니다!';
+                currentBtn1Text = '안전하게 지나가며 보물을 챙긴다'; currentBtn1Sub = '(페널티 없이 +30 영혼)'; currentBtn1Color = 'bg-yellow-600 hover:bg-yellow-500';
             }
             
             document.getElementById('event-title').textContent = ev.title;
             document.getElementById('event-desc').textContent = currentDesc;
             const btn1 = document.getElementById('event-btn1');
-            btn1.className = `px-6 py-4 rounded-lg font-bold transition flex justify-between items-center w-full min-w-[300px] ${currentBtn1Color}`;
-            document.getElementById('event-btn1-text').textContent = currentBtn1Text;
+            btn1.className = `px-4 sm:px-6 py-4 rounded-lg font-bold transition flex justify-between items-center w-full text-sm sm:text-base ${currentBtn1Color}`;
+            document.getElementById('event-btn1-text').textContent = currentBtn1Text + (ev.btn2Text ? '' : ' (Space)');
             document.getElementById('event-btn1-sub').textContent = currentBtn1Sub;
-            document.getElementById('event-btn2-text').textContent = ev.btn2Text + ' (Space)';
-            document.getElementById('event-btn2-sub').textContent = ev.btn2Sub;
+            
+            const btn2 = document.getElementById('event-btn2');
+            if (ev.btn2Text) {
+                btn2.classList.remove('hidden');
+                document.getElementById('event-btn2-text').textContent = ev.btn2Text + ' (Space)';
+                document.getElementById('event-btn2-sub').textContent = ev.btn2Sub;
+            } else {
+                btn2.classList.add('hidden'); // 선택지가 1개면 두 번째 버튼 숨김
+            }
             switchScreen('event');
         }
 
         window.resolveEvent = function(choice) {
             if (!state.currentEvent) return;
+            if (choice === 2 && !state.currentEvent.onBtn2) return; // 두 번째 버튼이 없으면 무시
+            
             let success = choice === 1 ? state.currentEvent.onBtn1() : state.currentEvent.onBtn2();
             if (choice === 1 && !success) { showFloatingText('event-title', '조건(자원)이 부족합니다!', 'text-red-400'); return; }
             if (success === 'combat') return; 
@@ -1696,11 +2325,12 @@
             container.innerHTML = '';
             state.discard.forEach((c, idx) => {
                 const cardEl = document.createElement('div');
+                const titleColor = c.type === 'attack' ? 'text-red-400' : (c.type === 'power' ? 'text-purple-400' : 'text-blue-400');
                 cardEl.className = 'game-card cursor-pointer transform hover:scale-110';
                 cardEl.onclick = () => selectDiscardCard(idx);
                 cardEl.innerHTML = `
                     <div class="card-cost">${c.cost}</div>
-                    <div class="card-title text-${c.type === 'attack' ? 'red' : 'blue'}-400">${c.title}</div>
+                    <div class="card-title ${titleColor}">${c.title}</div>
                     <div class="card-desc">${c.desc}</div>
                 `;
                 container.appendChild(cardEl);
@@ -1773,10 +2403,11 @@
 
         function createSimpleCardElement(card) {
             const cardEl = document.createElement('div');
+            const titleColor = card.type === 'attack' ? 'text-red-400' : (card.type === 'power' ? 'text-purple-400' : 'text-blue-400');
             cardEl.className = 'game-card cursor-default transform-none hover:scale-100 hover:translate-y-0';
             cardEl.innerHTML = `
                 <div class="card-cost">${card.cost}</div>
-                <div class="card-title text-${card.type === 'attack' ? 'red' : 'blue'}-400">${card.title}</div>
+                <div class="card-title ${titleColor}">${card.title}</div>
                 <div class="card-desc">${card.desc}</div>
             `;
             return cardEl;
@@ -1858,10 +2489,30 @@
                 if (state.currentScreen === 'combat') { if (state.selectedCardIndex !== -1) executeSelectedCard(); } 
                 else if (state.currentScreen === 'reward') skipReward();
                 else if (state.currentScreen === 'shop') leaveShop();
-                else if (state.currentScreen === 'event') resolveEvent(2); 
+                else if (state.currentScreen === 'event') {
+                    // 선택지가 1개면 Space 바가 첫 번째 선택지를 자동으로 누름
+                    if (state.currentEvent.onBtn2) resolveEvent(2);
+                    else resolveEvent(1);
+                } 
                 else if (state.currentScreen === 'result') initGame();
             }
         });
+
+        // 화면 크기 변경 시 손패 레이아웃 재계산
+        window.addEventListener('resize', () => {
+            if (state.currentScreen === 'combat') renderHand();
+        });
+
+        // 모바일 더블탭 줌 방지 (스크롤 영역 제외)
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (e) => {
+            if (e.target.closest('#hand-container, #map-container, #minimap-container, .overflow-y-auto')) return;
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
 
         initGame();
     </script>
